@@ -23,12 +23,13 @@ class MCPClient {
     // Крок 1: Запускаємо Actor
     // https://docs.apify.com/api/v2#/reference/actors/run-collection/run-actor
     console.log('Step 1: Starting Apify Actor...');
+    const facebookAdsUrl = `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${country}&view_all_page_id=${pageId}`;
+    
     const runResponse = await fetch(`${this.apifyApiUrl}/acts/apify~facebook-ads-scraper/runs`, {
       method: 'POST',
       headers: headers,
       body: JSON.stringify({
-        search: `page_id:${pageId}`,
-        country: country,
+        startUrls: [facebookAdsUrl],
         maxItems: 5
       })
     });
