@@ -1,8 +1,9 @@
 // Claude API Service
 // Сервіс для роботи з Claude Sonnet 4 API
 
-// API ключ тепер на Railway backend
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+// Використовуємо Railway backend замість прямого виклику Claude API
+const RAILWAY_API_URL = import.meta.env.VITE_RAILWAY_API_URL || 'https://createnkogurutrend-production.up.railway.app';
+const CLAUDE_API_URL = `${RAILWAY_API_URL}/api/claude`;
 
 // Типи для API
 interface ClaudeMessage {
