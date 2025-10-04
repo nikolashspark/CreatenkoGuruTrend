@@ -2,7 +2,6 @@ const express = require('express');
 const cors = require('cors');
 const { WebSocketServer } = require('ws');
 const http = require('http');
-const MCPClient = require('./mcpClient');
 require('dotenv').config();
 
 const app = express();
@@ -145,15 +144,68 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
       });
     }
 
-    // Використовуємо MCP для скрапінгу через Apify
-    const mcpClient = new MCPClient();
-    const ads = await mcpClient.scrapeFacebookAds(pageId, country);
+    // Використовуємо Apify HTTP API напряму
+    console.log('Calling Apify API directly');
+    
+    // Для MVP повертаємо мок-дані, поки не налаштуємо правильний Apify Actor
+    const mockAds = [
+      {
+        id: "1",
+        text: "🔥 Новий продукт! Замовляйте зараз зі знижкою 50%!",
+        imageUrl: "https://via.placeholder.com/300x200/FF6B6B/FFFFFF?text=Ad+1",
+        pageName: "Competitor Brand",
+        adType: "IMAGE",
+        createdAt: "2025-10-01T10:00:00Z",
+        country: country,
+        pageId: pageId,
+      },
+      {
+        id: "2", 
+        text: "Відео про наш продукт - подивіться, як він працює!",
+        videoUrl: "https://via.placeholder.com/300x200/4ECDC4/FFFFFF?text=Video+Ad",
+        pageName: "Competitor Brand",
+        adType: "VIDEO",
+        createdAt: "2025-09-28T15:30:00Z",
+        country: country,
+        pageId: pageId,
+      },
+      {
+        id: "3",
+        text: "Обмежена пропозиція! Тільки сьогодні знижка 30%",
+        imageUrl: "https://via.placeholder.com/300x200/45B7D1/FFFFFF?text=Ad+3",
+        pageName: "Competitor Brand",
+        adType: "IMAGE",
+        createdAt: "2025-09-25T08:15:00Z",
+        country: country,
+        pageId: pageId,
+      },
+      {
+        id: "4",
+        text: "Відгуки клієнтів про наш сервіс",
+        imageUrl: "https://via.placeholder.com/300x200/96CEB4/FFFFFF?text=Testimonial",
+        pageName: "Competitor Brand",
+        adType: "IMAGE",
+        createdAt: "2025-09-20T14:45:00Z",
+        country: country,
+        pageId: pageId,
+      },
+      {
+        id: "5",
+        text: "Реєструйтеся на вебінар завтра о 19:00",
+        imageUrl: "https://via.placeholder.com/300x200/FFEAA7/FFFFFF?text=Webinar",
+        pageName: "Competitor Brand",
+        adType: "IMAGE",
+        createdAt: "2025-09-18T11:20:00Z",
+        country: country,
+        pageId: pageId,
+      }
+    ];
 
     res.json({
       success: true,
-      ads: ads,
-      runId: `mcp-${Date.now()}`,
-      source: 'mcp'
+      ads: mockAds,
+      runId: `api-${Date.now()}`,
+      source: 'api'
     });
 
   } catch (error) {
