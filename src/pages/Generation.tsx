@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import FileUpload from '../components/FileUpload'
+import { generateWithClaude } from '../services/claudeApi'
+import '../services/testClaude' // Імпорт тестового файлу
 
 const Generation = () => {
   const [appLink, setAppLink] = useState('')
@@ -7,6 +9,8 @@ const Generation = () => {
   const [goodPerformanceFile, setGoodPerformanceFile] = useState<File | null>(null)
   const [badPerformanceFile, setBadPerformanceFile] = useState<File | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [generatedResult, setGeneratedResult] = useState('')
+  const [error, setError] = useState('')
 
   const handleGenerate = async () => {
     if (!appLink.trim() || !prompt.trim()) {
@@ -15,20 +19,31 @@ const Generation = () => {
     }
 
     setIsGenerating(true)
+    setError('')
+    setGeneratedResult('')
     
-    // Симуляція обробки
     try {
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      console.log('Generation data:', {
-        appLink,
-        prompt,
-        goodPerformanceFile,
-        badPerformanceFile
-      })
-      alert('Генерація завершена успішно!')
+      // Формуємо повний prompt для Claude
+      const fullPrompt = `
+App Link: ${appLink}
+Prompt: ${prompt}
+${goodPerformanceFile ? `Good Performance File: ${goodPerformanceFile.name}` : ''}
+${badPerformanceFile ? `Bad Performance File: ${badPerformanceFile.name}` : ''}
+
+Будь ласка, проаналізуй дані та надай рекомендації для покращення продуктивності додатку.
+      `.trim()
+
+      console.log('Sending request to Claude API...')
+      const result = await generateWithClaude(fullPrompt)
+      
+      setGeneratedResult(result)
+      console.log('Claude API response:', result)
+      
     } catch (error) {
       console.error('Generation error:', error)
-      alert('Помилка під час генерації')
+      const errorMessage = error instanceof Error ? error.message : 'Невідома помилка під час генерації'
+      setError(errorMessage)
+      alert(`Помилка: ${errorMessage}`)
     } finally {
       setIsGenerating(false)
     }
@@ -110,6 +125,22 @@ const Generation = () => {
                 )}
               </button>
             </div>
+
+            {/* Error Display */}
+            {error && (
+              <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <h3 className="text-sm font-medium text-red-800 mb-2">Помилка:</h3>
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            )}
+
+            {/* Generated Result Display */}
+            {generatedResult && (
+              <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <h3 className="text-sm font-medium text-green-800 mb-2">Результат генерації:</h3>
+                <div className="text-sm text-green-700 whitespace-pre-wrap">{generatedResult}</div>
+              </div>
+            )}
         </div>
       </div>
     </div>
