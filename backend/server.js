@@ -1,9 +1,17 @@
 const express = require('express');
 const cors = require('cors');
+const { WebSocketServer } = require('ws');
+const http = require('http');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// Create WebSocket server
+const wss = new WebSocketServer({ server });
 
 // Middleware
 app.use(cors({
@@ -53,11 +61,60 @@ app.post('/api/claude', async (req, res) => {
   }
 });
 
+// WebSocket connection handling
+wss.on('connection', (ws, req) => {
+  console.log('🔌 New WebSocket connection');
+  
+  ws.on('message', async (message) => {
+    try {
+      const data = JSON.parse(message);
+      console.log('📨 Received WebSocket message:', data);
+      
+      if (data.type === 'claude_request') {
+        // Send request to Claude API
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': process.env.CLAUDE_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify(data.payload)
+        });
+        
+        if (response.ok) {
+          const claudeData = await response.json();
+          ws.send(JSON.stringify({
+            type: 'claude_response',
+            data: claudeData
+          }));
+        } else {
+          ws.send(JSON.stringify({
+            type: 'error',
+            error: 'Claude API request failed'
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('WebSocket error:', error);
+      ws.send(JSON.stringify({
+        type: 'error',
+        error: error.message
+      }));
+    }
+  });
+  
+  ws.on('close', () => {
+    console.log('🔌 WebSocket connection closed');
+  });
+});
+
 // Start server
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🤖 Claude API proxy: http://localhost:${PORT}/api/claude`);
+  console.log(`🔌 WebSocket server: ws://localhost:${PORT}`);
 });
 
 module.exports = app;

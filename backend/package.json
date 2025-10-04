@@ -10,7 +10,8 @@
   "dependencies": {
     "express": "^5.1.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "ws": "^8.14.2"
   },
   "keywords": ["claude", "api", "proxy", "railway"],
   "author": "",

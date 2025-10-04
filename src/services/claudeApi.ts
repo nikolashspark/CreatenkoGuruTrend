@@ -1,9 +1,14 @@
 // Claude API Service
-// Сервіс для роботи з Claude Sonnet 4 API
+// Сервіс для роботи з Claude Sonnet 4 API через WebSocket
+
+import WebSocketService from './websocketService';
 
 // Використовуємо Railway backend замість прямого виклику Claude API
 const RAILWAY_API_URL = import.meta.env.VITE_RAILWAY_API_URL || 'https://createnkogurutrend-production.up.railway.app';
 const CLAUDE_API_URL = `${RAILWAY_API_URL}/api/claude`;
+
+// WebSocket service instance
+const wsService = new WebSocketService();
 
 // Типи для API
 interface ClaudeMessage {
@@ -42,9 +47,9 @@ interface ClaudeError {
   };
 }
 
-// Функція для відправки запиту до Claude API
+// Функція для відправки запиту до Claude API через WebSocket
 export const generateWithClaude = async (prompt: string): Promise<string> => {
-  try {
+  return new Promise((resolve, reject) => {
     const requestBody: ClaudeRequest = {
       model: 'claude-sonnet-4-20250514',
       max_tokens: 1024,
@@ -56,32 +61,23 @@ export const generateWithClaude = async (prompt: string): Promise<string> => {
       ]
     };
 
-    const response = await fetch(CLAUDE_API_URL, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json'
+    console.log('Sending WebSocket request to Railway backend');
+
+    wsService.sendClaudeRequest(
+      requestBody,
+      (data: ClaudeResponse) => {
+        // Повертаємо текст відповіді
+        if (data.content && data.content.length > 0) {
+          resolve(data.content[0].text);
+        } else {
+          reject(new Error('Порожня відповідь від Claude API'));
+        }
       },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorData: ClaudeError = await response.json();
-      throw new Error(`Railway Backend Error: ${errorData.error || response.statusText}`);
-    }
-
-    const data: ClaudeResponse = await response.json();
-    
-    // Повертаємо текст відповіді
-    if (data.content && data.content.length > 0) {
-      return data.content[0].text;
-    }
-    
-    throw new Error('Порожня відповідь від Claude API');
-    
-  } catch (error) {
-    console.error('Claude API Error:', error);
-    throw error;
-  }
+      (error: string) => {
+        reject(new Error(`WebSocket Error: ${error}`));
+      }
+    );
+  });
 };
 
 // Функція для тестування API ключа
