@@ -156,9 +156,12 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
 
   } catch (error) {
     console.error('Facebook Ads Error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('APIFY_API_TOKEN exists:', !!process.env.APIFY_API_TOKEN);
     res.status(500).json({
       error: 'Failed to scrape Facebook Ads',
-      details: error.message
+      details: error.message,
+      hasApifyToken: !!process.env.APIFY_API_TOKEN
     });
   }
 });
