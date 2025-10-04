@@ -352,12 +352,35 @@ app.post('/api/vertex/analyze-video', async (req, res) => {
     }
 
     const videoBuffer = await videoResponse.arrayBuffer();
-    const videoBase64 = Buffer.from(videoBuffer).toString('base64');
     console.log(`Video downloaded: ${(videoBuffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
 
-    console.log('Step 3: Analyzing video with Vertex AI Gemini...');
+    console.log('Step 3: Uploading video to Vertex AI File API...');
 
-    // Викликаємо Vertex AI
+    // Завантажуємо відео через File API
+    const uploadUrl = `https://${location}-aiplatform.googleapis.com/upload/v1/projects/${projectId}/locations/${location}/files`;
+    
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'video/mp4'
+      },
+      body: videoBuffer
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error('File upload error:', errorText);
+      throw new Error(`Failed to upload video: ${uploadResponse.statusText}`);
+    }
+
+    const uploadData = await uploadResponse.json();
+    const fileUri = uploadData.uri;
+    console.log('Video uploaded, URI:', fileUri);
+
+    console.log('Step 4: Analyzing video with Vertex AI Gemini...');
+
+    // Викликаємо Vertex AI з fileUri
     const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-exp:generateContent`;
 
     const requestBody = {
@@ -365,9 +388,9 @@ app.post('/api/vertex/analyze-video', async (req, res) => {
         role: 'user',
         parts: [
           {
-            inlineData: {
+            fileData: {
               mimeType: 'video/mp4',
-              data: videoBase64
+              fileUri: fileUri
             }
           },
           {
