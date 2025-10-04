@@ -5,6 +5,7 @@ import WebSocketService from './websocketService';
 
 // Використовуємо Railway backend замість прямого виклику Claude API
 const RAILWAY_API_URL = import.meta.env.VITE_RAILWAY_API_URL || 'https://createnkogurutrend-production.up.railway.app';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const CLAUDE_API_URL = `${RAILWAY_API_URL}/api/claude`;
 
 // WebSocket service instance
@@ -39,13 +40,6 @@ interface ClaudeResponse {
   };
 }
 
-interface ClaudeError {
-  type: string;
-  error: {
-    type: string;
-    message: string;
-  };
-}
 
 // Функція для відправки запиту до Claude API через WebSocket
 export const generateWithClaude = async (prompt: string): Promise<string> => {
