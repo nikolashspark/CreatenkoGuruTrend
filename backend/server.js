@@ -24,8 +24,14 @@ const wss = new WebSocketServer({ server });
 // Middleware
 app.use(cors({
   origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://localhost:5177', 'http://localhost:5178', 'https://createnko-guru-trend.vercel.app'],
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Додаємо обробку preflight запитів
+app.options('*', cors());
+
 app.use(express.json());
 
 // Health check endpoint
