@@ -1,5 +1,4 @@
 const express = require('express');
-const cors = require('cors');
 const { WebSocketServer } = require('ws');
 const http = require('http');
 const MCPClient = require('./mcpClient');
