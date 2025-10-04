@@ -1,13 +1,11 @@
 // Claude API Service
 // Сервіс для роботи з Claude Sonnet 4 API
 
-const CLAUDE_API_KEY = import.meta.env.VITE_CLAUDE_API_KEY;
-const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
+// Використовуємо Railway backend замість прямого виклику Claude API
+const RAILWAY_API_URL = import.meta.env.VITE_RAILWAY_API_URL || 'https://createnkogurutrend-production.up.railway.app';
+const CLAUDE_API_URL = `${RAILWAY_API_URL}/api/claude`;
 
-// Перевірка наявності API ключа
-if (!CLAUDE_API_KEY) {
-  throw new Error('VITE_CLAUDE_API_KEY не знайдено в змінних середовища. Будь ласка, створіть .env файл з вашим API ключем.');
-}
+// API ключ тепер на backend, не потрібна перевірка
 
 // Типи для API
 interface ClaudeMessage {
@@ -46,7 +44,7 @@ interface ClaudeError {
   };
 }
 
-// Функція для відправки запиту до Claude API
+// Функція для відправки запиту до Claude API через Railway backend
 export const generateWithClaude = async (prompt: string): Promise<string> => {
   try {
     const requestBody: ClaudeRequest = {
@@ -60,11 +58,11 @@ export const generateWithClaude = async (prompt: string): Promise<string> => {
       ]
     };
 
+    console.log('Sending request to Railway backend:', CLAUDE_API_URL);
+
     const response = await fetch(CLAUDE_API_URL, {
       method: 'POST',
       headers: {
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01',
         'content-type': 'application/json'
       },
       body: JSON.stringify(requestBody)
@@ -72,7 +70,7 @@ export const generateWithClaude = async (prompt: string): Promise<string> => {
 
     if (!response.ok) {
       const errorData: ClaudeError = await response.json();
-      throw new Error(`Claude API Error: ${errorData.error?.message || response.statusText}`);
+      throw new Error(`Railway Backend Error: ${errorData.error || response.statusText}`);
     }
 
     const data: ClaudeResponse = await response.json();
@@ -85,7 +83,7 @@ export const generateWithClaude = async (prompt: string): Promise<string> => {
     throw new Error('Порожня відповідь від Claude API');
     
   } catch (error) {
-    console.error('Claude API Error:', error);
+    console.error('Railway Backend Error:', error);
     throw error;
   }
 };

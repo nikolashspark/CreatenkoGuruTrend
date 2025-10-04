@@ -11,6 +11,62 @@ const Generation = () => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [showChat, setShowChat] = useState(false)
   const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'assistant', content: string, timestamp: Date}>>([])
+  const [hints, setHints] = useState<string[]>([])
+  const [isGeneratingHints, setIsGeneratingHints] = useState(false)
+  const [fileAnalysis, setFileAnalysis] = useState<{[key: string]: string}>({})
+
+  // Функція для аналізу файлу
+  const analyzeFile = async (file: File, type: 'good' | 'bad') => {
+    try {
+      const content = await file.text()
+      const analysisPrompt = `
+        Проаналізуй цей файл (${type === 'good' ? 'хороша' : 'погана'} продуктивність):
+        Назва файлу: ${file.name}
+        Розмір: ${file.size} байт
+        
+        Вміст:
+        ${content.substring(0, 2000)}${content.length > 2000 ? '...' : ''}
+        
+        Надай короткий аналіз (2-3 речення) того, що може впливати на продуктивність.
+      `
+      
+      const analysis = await generateWithClaude(analysisPrompt)
+      setFileAnalysis(prev => ({
+        ...prev,
+        [type]: analysis
+      }))
+    } catch (error) {
+      console.error('Error analyzing file:', error)
+    }
+  }
+
+  // Функція для генерації підказок
+  const generateHints = async () => {
+    if (!prompt.trim()) return
+    
+    setIsGeneratingHints(true)
+    try {
+      const hintsPrompt = `
+        На основі цього запиту: "${prompt}"
+        Надай 3-5 конкретних підказок для покращення аналізу продуктивності додатку.
+        Кожна підказка має бути короткою (1-2 речення) та практичною.
+        Відповідь надай у форматі списку з номерами.
+      `
+      
+      const hintsResponse = await generateWithClaude(hintsPrompt)
+      const hintsList = hintsResponse
+        .split('\n')
+        .filter(line => line.trim() && /^\d+\./.test(line.trim()))
+        .map(line => line.replace(/^\d+\.\s*/, '').trim())
+        .slice(0, 5)
+      
+      setHints(hintsList)
+    } catch (error) {
+      console.error('Error generating hints:', error)
+    } finally {
+      setIsGeneratingHints(false)
+    }
+  }
 
   const handleGenerate = async () => {
     if (!prompt.trim()) {
@@ -34,10 +90,16 @@ const Generation = () => {
       const fullPrompt = `
 App Link: ${appLink || 'Не вказано'}
 Prompt: ${prompt}
-${goodPerformanceFile ? `Good Performance File: ${goodPerformanceFile.name}` : ''}
-${badPerformanceFile ? `Bad Performance File: ${badPerformanceFile.name}` : ''}
 
-Будь ласка, проаналізуй дані та надай рекомендації для покращення продуктивності додатку. Надай детальний reasoning та пошагові рекомендації.
+${goodPerformanceFile ? `Good Performance File: ${goodPerformanceFile.name}
+Аналіз хорошого файлу: ${fileAnalysis.good || 'Аналіз не готовий'}` : ''}
+
+${badPerformanceFile ? `Bad Performance File: ${badPerformanceFile.name}
+Аналіз поганого файлу: ${fileAnalysis.bad || 'Аналіз не готовий'}` : ''}
+
+Будь ласка, проаналізуй дані та надай рекомендації для покращення продуктивності додатку. 
+Використовуй аналіз файлів для порівняння та виявлення проблем.
+Надай детальний reasoning та пошагові рекомендації з пріоритетами.
       `.trim()
 
       console.log('Sending request to Claude API...')
@@ -96,15 +158,39 @@ ${badPerformanceFile ? `Bad Performance File: ${badPerformanceFile.name}` : ''}
               <label htmlFor="prompt" className="block text-sm font-medium text-gray-700 mb-2">
                 Prompt:
               </label>
-              <textarea
-                id="prompt"
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Введіть ваш запит тут..."
-                rows={4}
-                className="input-field resize-none"
-                required
-              />
+              <div className="relative">
+                <textarea
+                  id="prompt"
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="Введіть ваш запит тут..."
+                  rows={4}
+                  className="input-field resize-none pr-20"
+                  required
+                />
+                <button
+                  onClick={generateHints}
+                  disabled={!prompt.trim() || isGeneratingHints}
+                  className="absolute right-2 top-2 px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {isGeneratingHints ? '...' : '💡 Підказки'}
+                </button>
+              </div>
+              
+              {/* Hints Display */}
+              {hints.length > 0 && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">💡 Підказки для покращення:</h4>
+                  <ul className="space-y-1">
+                    {hints.map((hint, index) => (
+                      <li key={index} className="text-sm text-blue-700 flex items-start">
+                        <span className="text-blue-500 mr-2">•</span>
+                        {hint}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
 
             {/* Tested Performance Section */}
@@ -113,15 +199,39 @@ ${badPerformanceFile ? `Bad Performance File: ${badPerformanceFile.name}` : ''}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
                 <FileUpload
                   label="Good working"
-                  onFileSelect={setGoodPerformanceFile}
+                  onFileSelect={(file) => {
+                    setGoodPerformanceFile(file)
+                    if (file) analyzeFile(file, 'good')
+                  }}
                   acceptedFile={goodPerformanceFile}
                 />
                 <FileUpload
                   label="Bad performance"
-                  onFileSelect={setBadPerformanceFile}
+                  onFileSelect={(file) => {
+                    setBadPerformanceFile(file)
+                    if (file) analyzeFile(file, 'bad')
+                  }}
                   acceptedFile={badPerformanceFile}
                 />
               </div>
+              
+              {/* File Analysis Display */}
+              {(fileAnalysis.good || fileAnalysis.bad) && (
+                <div className="mt-4 space-y-3">
+                  {fileAnalysis.good && (
+                    <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <h4 className="text-sm font-medium text-green-800 mb-1">✅ Аналіз хорошого файлу:</h4>
+                      <p className="text-sm text-green-700">{fileAnalysis.good}</p>
+                    </div>
+                  )}
+                  {fileAnalysis.bad && (
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <h4 className="text-sm font-medium text-red-800 mb-1">❌ Аналіз поганого файлу:</h4>
+                      <p className="text-sm text-red-700">{fileAnalysis.bad}</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Generate Button */}
