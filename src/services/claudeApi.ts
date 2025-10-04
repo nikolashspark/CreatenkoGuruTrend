@@ -1,7 +1,7 @@
 // Claude API Service
 // Сервіс для роботи з Claude Sonnet 4 API
 
-const CLAUDE_API_KEY = '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';
+// API ключ тепер на Railway backend
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 
 // Типи для API
