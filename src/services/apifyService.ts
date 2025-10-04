@@ -1,8 +1,7 @@
 // Apify Service
-// Сервіс для роботи з Apify API для скрапінгу Facebook Ads
+// Сервіс для роботи з Apify API через Railway backend
 
-const APIFY_API_TOKEN = import.meta.env.VITE_APIFY_API_TOKEN;
-const APIFY_API_URL = 'https://api.apify.com/v2';
+const RAILWAY_API_URL = import.meta.env.VITE_RAILWAY_API_URL || 'https://createnkogurutrend-production.up.railway.app';
 
 export interface FacebookAdData {
   id: string;
@@ -109,40 +108,37 @@ export const runApifyActor = async (
   }
 };
 
-// Функція для скрапінгу Facebook Ads
+// Функція для скрапінгу Facebook Ads через Railway backend
 export const scrapeFacebookAds = async (
   pageId: string,
   country: string = 'US'
 ): Promise<FacebookAdData[]> => {
   try {
-    const input = {
-      pageIds: [pageId],
-      countries: [country],
-      adStatus: 'ACTIVE',
-      adType: 'ALL',
-      mediaType: 'ALL',
-      limit: 5,
-      maxAge: 30, // 30 днів
-    };
+    console.log(`Scraping Facebook Ads for page ${pageId} in ${country}`);
 
-    const result = await runApifyActor('apify/facebook-ads-scraper', input);
-    
-    if (!result.items) {
-      throw new Error('No ads found');
+    const response = await fetch(`${RAILWAY_API_URL}/api/apify/facebook-ads`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        pageId,
+        country
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Railway Backend Error: ${errorData.error || response.statusText}`);
     }
 
-    // Трансформуємо дані в наш формат
-    return result.items.map((item: any) => ({
-      id: item.id || Math.random().toString(36).substr(2, 9),
-      text: item.text || item.adText || 'No text available',
-      imageUrl: item.imageUrl || item.image || null,
-      videoUrl: item.videoUrl || item.video || null,
-      pageName: item.pageName || item.page?.name || 'Unknown Page',
-      adType: item.adType || item.type || 'Unknown',
-      createdAt: item.createdAt || item.startDate || new Date().toISOString(),
-      country: item.country || country,
-      pageId: item.pageId || pageId,
-    }));
+    const data = await response.json();
+    
+    if (!data.success || !data.ads) {
+      throw new Error('No ads found or invalid response');
+    }
+
+    return data.ads;
 
   } catch (error: any) {
     console.error('Facebook Ads Scraping Error:', error);
@@ -150,16 +146,22 @@ export const scrapeFacebookAds = async (
   }
 };
 
-// Функція для тестування Apify підключення
+// Функція для тестування Apify підключення через Railway backend
 export const testApifyConnection = async (): Promise<boolean> => {
   try {
-    const response = await fetch(`${APIFY_API_URL}/users/me`, {
+    const response = await fetch(`${RAILWAY_API_URL}/api/apify/facebook-ads`, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${APIFY_API_TOKEN}`,
-      }
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        pageId: 'test',
+        country: 'US'
+      })
     });
     
-    return response.ok;
+    // Якщо отримали помилку про відсутність Page ID, значить backend працює
+    return response.status === 400;
   } catch (error) {
     console.error('Apify connection test failed:', error);
     return false;
