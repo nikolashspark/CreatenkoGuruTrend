@@ -32,8 +32,7 @@ export const scrapeFacebookAds = async (
       },
       body: JSON.stringify({
         pageId,
-        country,
-        useMock: true // Використовуємо мок-дані поки Railway не готовий
+        country
       })
     });
 
