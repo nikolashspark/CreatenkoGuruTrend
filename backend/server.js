@@ -183,10 +183,14 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     };
 
     console.log('Sending request to Apify API...');
-    const runResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${process.env.APIFY_API_TOKEN}`, {
+    console.log('Actor ID:', actorId);
+    console.log('Input:', JSON.stringify(input));
+    
+    const runResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.APIFY_API_TOKEN}`
       },
       body: JSON.stringify(input)
     });
