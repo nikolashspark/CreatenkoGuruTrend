@@ -54,17 +54,13 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     console.log(`Scraping Facebook Ads for page ${pageId} in ${country}`);
 
     const input = {
-      queries: [
-        {
-          query: `Facebook ads page ${pageId}`,
-          country: country
-        }
-      ],
+      startUrls: [`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${country}&is_targeted_country=false&media_type=all&search_type=page&view_all_page_id=${pageId}`],
       maxItems: 5,
+      maxAge: 30,
     };
 
-    // Запускаємо Apify Actor (використовуємо Google Search Scraper для тестування)
-    const runResponse = await fetch('https://api.apify.com/v2/acts/apify~google-search-scraper/runs', {
+    // Запускаємо Apify Facebook Ads Scraper
+    const runResponse = await fetch('https://api.apify.com/v2/acts/apify~facebook-ads-scraper/runs', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.APIFY_API_TOKEN}`,
@@ -93,7 +89,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     while (status === 'RUNNING' && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 10000)); // 10 секунд
       
-      const statusResponse = await fetch(`https://api.apify.com/v2/acts/apify~google-search-scraper/runs/${runId}`, {
+      const statusResponse = await fetch(`https://api.apify.com/v2/acts/apify~facebook-ads-scraper/runs/${runId}`, {
         headers: {
           'Authorization': `Bearer ${process.env.APIFY_API_TOKEN}`,
         }
@@ -113,7 +109,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     }
 
     // Отримуємо результати
-    const datasetResponse = await fetch(`https://api.apify.com/v2/acts/apify~google-search-scraper/runs/${runId}/dataset/items`, {
+    const datasetResponse = await fetch(`https://api.apify.com/v2/acts/apify~facebook-ads-scraper/runs/${runId}/dataset/items`, {
       headers: {
         'Authorization': `Bearer ${process.env.APIFY_API_TOKEN}`,
       }
