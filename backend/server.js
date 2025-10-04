@@ -7,11 +7,15 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Діагностика API ключа
-console.log('=== CLAUDE API KEY DIAGNOSTICS ===');
+// Діагностика API ключів
+console.log('=== API KEYS DIAGNOSTICS ===');
 console.log('CLAUDE_API_KEY exists:', !!process.env.CLAUDE_API_KEY);
 console.log('CLAUDE_API_KEY length:', process.env.CLAUDE_API_KEY ? process.env.CLAUDE_API_KEY.length : 0);
 console.log('CLAUDE_API_KEY starts with sk-:', process.env.CLAUDE_API_KEY ? process.env.CLAUDE_API_KEY.startsWith('sk-') : false);
+console.log('---');
+console.log('APIFY_API_TOKEN exists:', !!process.env.APIFY_API_TOKEN);
+console.log('APIFY_API_TOKEN length:', process.env.APIFY_API_TOKEN ? process.env.APIFY_API_TOKEN.length : 0);
+console.log('APIFY_API_TOKEN starts with apify_:', process.env.APIFY_API_TOKEN ? process.env.APIFY_API_TOKEN.startsWith('apify_') : false);
 console.log('================================');
 
 // Create HTTP server
@@ -75,11 +79,15 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
   try {
     const { pageId, country = 'US', useMock = false } = req.body;
     
+    console.log('=== APIFY ENDPOINT CALLED ===');
+    console.log('Request body:', JSON.stringify(req.body));
+    console.log('APIFY_API_TOKEN present:', !!process.env.APIFY_API_TOKEN);
+    
     if (!pageId) {
       return res.status(400).json({ error: 'Page ID is required' });
     }
 
-    console.log(`Scraping Facebook Ads for page ${pageId} in ${country} (MCP: ${!useMock})`);
+    console.log(`Scraping Facebook Ads for page ${pageId} in ${country} (useMock: ${useMock})`);
 
     // Якщо useMock=true, використовуємо мок-дані
     if (useMock) {
@@ -158,6 +166,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
       maxItems: 5
     };
 
+    console.log('Sending request to Apify API...');
     const runResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs`, {
       method: 'POST',
       headers: {
@@ -167,8 +176,11 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
       body: JSON.stringify(input)
     });
 
+    console.log('Apify API response status:', runResponse.status);
+    
     if (!runResponse.ok) {
       const errorData = await runResponse.json();
+      console.error('Apify API error:', JSON.stringify(errorData));
       throw new Error(`Apify API Error: ${errorData.error?.message || runResponse.statusText}`);
     }
 
