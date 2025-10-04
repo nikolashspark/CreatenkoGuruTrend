@@ -186,7 +186,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
           url: facebookAdsUrl
         }
       ],
-      count: 5,
+      count: 10, // Мінімум 10 згідно з вимогами Actor
       "scrapePageAds.activeStatus": "active",
       "scrapePageAds.countryCode": country
     };
@@ -216,6 +216,15 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     const items = await runResponse.json();
     console.log(`Received ${items.length} items from Apify`);
     console.log('First item sample:', JSON.stringify(items[0], null, 2));
+
+    // Перевіряємо чи є помилка в відповіді
+    if (items.length > 0 && items[0].error) {
+      throw new Error(`Apify Actor Error: ${items[0].error}`);
+    }
+
+    if (items.length === 0) {
+      throw new Error('No ads found for this page');
+    }
 
     // Трансформуємо дані (структура може відрізнятися залежно від Actor)
     const transformedAds = items.slice(0, 5).map((item) => ({
