@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Sparkles, Lightbulb } from 'lucide-react'
+import { Sparkles, Lightbulb, Search } from 'lucide-react'
 
 const Sidebar = () => {
   const location = useLocation()
@@ -14,6 +14,11 @@ const Sidebar = () => {
       name: 'Inspiration',
       path: '/inspiration',
       icon: Lightbulb,
+    },
+    {
+      name: 'Аналіз конкурентів',
+      path: '/competitors',
+      icon: Search,
     },
   ]
 
