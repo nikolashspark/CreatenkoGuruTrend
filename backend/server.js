@@ -145,67 +145,97 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     }
 
     // Використовуємо Apify HTTP API напряму
-    console.log('Calling Apify API directly');
+    console.log('Calling Apify HTTP API for Facebook Ads');
     
-    // Для MVP повертаємо мок-дані, поки не налаштуємо правильний Apify Actor
-    const mockAds = [
-      {
-        id: "1",
-        text: "🔥 Новий продукт! Замовляйте зараз зі знижкою 50%!",
-        imageUrl: "https://via.placeholder.com/300x200/FF6B6B/FFFFFF?text=Ad+1",
-        pageName: "Competitor Brand",
-        adType: "IMAGE",
-        createdAt: "2025-10-01T10:00:00Z",
-        country: country,
-        pageId: pageId,
+    if (!process.env.APIFY_API_TOKEN) {
+      throw new Error('APIFY_API_TOKEN not configured');
+    }
+
+    // Запускаємо Apify Actor через HTTP API
+    const actorId = 'apify/facebook-ads-scraper';
+    const input = {
+      startUrls: [`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${country}&view_all_page_id=${pageId}`],
+      maxItems: 5
+    };
+
+    const runResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/runs`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.APIFY_API_TOKEN}`,
+        'Content-Type': 'application/json'
       },
-      {
-        id: "2", 
-        text: "Відео про наш продукт - подивіться, як він працює!",
-        videoUrl: "https://via.placeholder.com/300x200/4ECDC4/FFFFFF?text=Video+Ad",
-        pageName: "Competitor Brand",
-        adType: "VIDEO",
-        createdAt: "2025-09-28T15:30:00Z",
-        country: country,
-        pageId: pageId,
-      },
-      {
-        id: "3",
-        text: "Обмежена пропозиція! Тільки сьогодні знижка 30%",
-        imageUrl: "https://via.placeholder.com/300x200/45B7D1/FFFFFF?text=Ad+3",
-        pageName: "Competitor Brand",
-        adType: "IMAGE",
-        createdAt: "2025-09-25T08:15:00Z",
-        country: country,
-        pageId: pageId,
-      },
-      {
-        id: "4",
-        text: "Відгуки клієнтів про наш сервіс",
-        imageUrl: "https://via.placeholder.com/300x200/96CEB4/FFFFFF?text=Testimonial",
-        pageName: "Competitor Brand",
-        adType: "IMAGE",
-        createdAt: "2025-09-20T14:45:00Z",
-        country: country,
-        pageId: pageId,
-      },
-      {
-        id: "5",
-        text: "Реєструйтеся на вебінар завтра о 19:00",
-        imageUrl: "https://via.placeholder.com/300x200/FFEAA7/FFFFFF?text=Webinar",
-        pageName: "Competitor Brand",
-        adType: "IMAGE",
-        createdAt: "2025-09-18T11:20:00Z",
-        country: country,
-        pageId: pageId,
+      body: JSON.stringify(input)
+    });
+
+    if (!runResponse.ok) {
+      const errorData = await runResponse.json();
+      throw new Error(`Apify API Error: ${errorData.error?.message || runResponse.statusText}`);
+    }
+
+    const runData = await runResponse.json();
+    const runId = runData.data.id;
+    const defaultDatasetId = runData.data.defaultDatasetId;
+
+    console.log(`Apify Actor started: ${runId}`);
+
+    // Чекаємо завершення (максимум 2 хвилини)
+    let status = 'RUNNING';
+    let attempts = 0;
+    const maxAttempts = 24; // 2 хвилини (24 * 5 секунд)
+
+    while (status === 'RUNNING' && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 5000)); // 5 секунд
+      
+      const statusResponse = await fetch(`https://api.apify.com/v2/actor-runs/${runId}`, {
+        headers: {
+          'Authorization': `Bearer ${process.env.APIFY_API_TOKEN}`
+        }
+      });
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        status = statusData.data.status;
+        console.log(`Run status: ${status}`);
       }
-    ];
+
+      attempts++;
+    }
+
+    if (status !== 'SUCCEEDED') {
+      throw new Error(`Apify Actor failed with status: ${status}`);
+    }
+
+    // Отримуємо результати з dataset
+    const datasetResponse = await fetch(`https://api.apify.com/v2/datasets/${defaultDatasetId}/items`, {
+      headers: {
+        'Authorization': `Bearer ${process.env.APIFY_API_TOKEN}`
+      }
+    });
+
+    if (!datasetResponse.ok) {
+      throw new Error('Failed to fetch dataset items');
+    }
+
+    const items = await datasetResponse.json();
+
+    // Трансформуємо дані
+    const transformedAds = items.slice(0, 5).map((item) => ({
+      id: item.id || Math.random().toString(36).substr(2, 9),
+      text: item.text || item.adText || item.body || 'No text available',
+      imageUrl: item.imageUrl || item.thumbnail || null,
+      videoUrl: item.videoUrl || null,
+      pageName: item.pageName || 'Unknown Page',
+      adType: item.format || 'Unknown',
+      createdAt: item.startDate || new Date().toISOString(),
+      country: country,
+      pageId: pageId
+    }));
 
     res.json({
       success: true,
-      ads: mockAds,
-      runId: `api-${Date.now()}`,
-      source: 'api'
+      ads: transformedAds,
+      runId: runId,
+      source: 'apify-api'
     });
 
   } catch (error) {
