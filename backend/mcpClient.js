@@ -12,15 +12,16 @@ class MCPClient {
       throw new Error('APIFY_API_TOKEN not found in environment variables');
     }
 
-    // Використовуємо run-sync-get-dataset-items для швидкого отримання результатів
-    const response = await fetch(`${this.apifyApiUrl}/acts/apify~facebook-ads-scraper/run-sync-get-dataset-items`, {
+    // Використовуємоrun-sync-get-dataset-items для швидкого отримання результатів
+    const response = await fetch(`${this.apifyApiUrl}/acts/apify~facebook-ads-scraper/run-sync-get-dataset-items?timeout=120`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${this.apifyToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        startUrls: [`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${country}&is_targeted_country=false&media_type=all&search_type=page&view_all_page_id=${pageId}`],
+        search: `page_id:${pageId}`,
+        country: country,
         maxItems: 5,
         proxyConfiguration: {
           useApifyProxy: true
