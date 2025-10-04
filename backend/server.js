@@ -33,24 +33,24 @@ const allowedOrigins = [
   'http://localhost:5178'
 ];
 
-app.use(cors({
-  origin: function (origin, callback) {
-    // Дозволяємо запити без origin (наприклад, mobile apps, curl)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log('CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
-}));
+// Додаємо CORS middleware з правильною обробкою preflight
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  }
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  
+  next();
+});
 
 app.use(express.json());
 
