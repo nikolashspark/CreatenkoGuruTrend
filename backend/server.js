@@ -93,7 +93,7 @@ app.get('/api/apify/facebook-ads', (req, res) => {
 // Facebook Ads Scraper endpoint через MCP
 app.post('/api/apify/facebook-ads', async (req, res) => {
   try {
-    const { pageId, country = 'US', useMock = false } = req.body;
+    const { pageId, country = 'US', count = 10, useMock = false } = req.body;
     
     console.log('=== APIFY ENDPOINT CALLED ===');
     console.log('Request body:', JSON.stringify(req.body));
@@ -103,7 +103,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
       return res.status(400).json({ error: 'Page ID is required' });
     }
 
-    console.log(`Scraping Facebook Ads for page ${pageId} in ${country} (useMock: ${useMock})`);
+    console.log(`Scraping Facebook Ads for page ${pageId} in ${country}, count: ${count} (useMock: ${useMock})`);
 
     // Якщо useMock=true, використовуємо мок-дані
     if (useMock) {
@@ -186,7 +186,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
           url: facebookAdsUrl
         }
       ],
-      count: 10, // Мінімум 10 згідно з вимогами Actor
+      count: Math.max(10, count), // Мінімум 10 згідно з вимогами Actor
       "scrapePageAds.activeStatus": "active",
       "scrapePageAds.countryCode": country
     };
@@ -227,7 +227,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     }
 
     // Трансформуємо дані (структура може відрізнятися залежно від Actor)
-    const transformedAds = items.slice(0, 5).map((item) => ({
+    const transformedAds = items.map((item) => ({
       id: item.id || item.adId || Math.random().toString(36).substr(2, 9),
       text: item.adText || item.text || item.body || item.snapshot?.body_text || 'No text available',
       imageUrl: item.imageUrl || item.snapshot?.link_url || item.snapshot?.cards?.[0]?.link_url || null,
