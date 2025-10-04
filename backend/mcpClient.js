@@ -12,8 +12,7 @@ class MCPClient {
       throw new Error('APIFY_API_TOKEN not found in environment variables');
     }
 
-    // Використовуємо run-sync-get-dataset-items (синхронний виклик)
-    // timeout=120 дає Apify 2 хвилини на виконання
+    // Використовуємоrun-sync-get-dataset-items для швидкого отримання результатів
     const response = await fetch(`${this.apifyApiUrl}/acts/apify~facebook-ads-scraper/run-sync-get-dataset-items?timeout=120`, {
       method: 'POST',
       headers: {
