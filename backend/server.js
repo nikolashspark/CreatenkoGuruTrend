@@ -16,6 +16,9 @@ console.log('---');
 console.log('APIFY_API_TOKEN exists:', !!process.env.APIFY_API_TOKEN);
 console.log('APIFY_API_TOKEN length:', process.env.APIFY_API_TOKEN ? process.env.APIFY_API_TOKEN.length : 0);
 console.log('APIFY_API_TOKEN starts with apify_:', process.env.APIFY_API_TOKEN ? process.env.APIFY_API_TOKEN.startsWith('apify_') : false);
+console.log('---');
+console.log('GEMINI_API_KEY exists:', !!process.env.GEMINI_API_KEY);
+console.log('GEMINI_API_KEY length:', process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.length : 0);
 console.log('================================');
 
 // Create HTTP server
@@ -294,6 +297,72 @@ app.post('/api/claude', async (req, res) => {
     console.error('Server Error:', error);
     res.status(500).json({
       error: 'Failed to fetch from Claude API',
+      details: error.message
+    });
+  }
+});
+
+// Gemini API proxy endpoint для аналізу відео
+app.post('/api/gemini/analyze-video', async (req, res) => {
+  try {
+    console.log('Received request to Gemini API for video analysis');
+
+    if (!process.env.GEMINI_API_KEY) {
+      return res.status(401).json({ error: 'GEMINI_API_KEY not configured' });
+    }
+
+    const { videoUrl, prompt } = req.body;
+
+    if (!videoUrl) {
+      return res.status(400).json({ error: 'videoUrl is required' });
+    }
+
+    // Gemini 2.5 Flash API endpoint
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${process.env.GEMINI_API_KEY}`;
+
+    const requestBody = {
+      contents: [{
+        parts: [
+          {
+            fileData: {
+              mimeType: "video/mp4",
+              fileUri: videoUrl
+            }
+          },
+          {
+            text: prompt || "Проаналізуй цей відео креатив детально: стиль, динаміка, візуальні ефекти, текст на відео, емоції, CTA, цільова аудиторія. Надай конкретні рекомендації."
+          }
+        ]
+      }]
+    };
+
+    console.log('Sending request to Gemini API...');
+    console.log('Video URL:', videoUrl);
+
+    const response = await fetch(geminiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Gemini API Error:', errorData);
+      return res.status(response.status).json({
+        error: `Gemini API Error: ${errorData.error?.message || response.statusText}`
+      });
+    }
+
+    const data = await response.json();
+    console.log('Gemini API Response received');
+
+    res.json(data);
+  } catch (error) {
+    console.error('Server Error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch from Gemini API',
       details: error.message
     });
   }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { generateWithClaude } from '../services/claudeApi';
 import { scrapeFacebookAds } from '../services/apifyService';
+import { analyzeVideoWithGemini } from '../services/geminiService';
 
 interface CompetitorAd {
   id: string;
@@ -20,6 +21,8 @@ const CompetitorAnalysis: React.FC = () => {
   const [pageId, setPageId] = useState('161970940341938');
   const [country, setCountry] = useState('US');
   const [count, setCount] = useState(10);
+  const [useGemini, setUseGemini] = useState(false);
+  const [videoAnalysis, setVideoAnalysis] = useState<Record<string, string>>({});
 
   const analyzeCompetitors = async () => {
     setIsLoading(true);
@@ -63,6 +66,25 @@ const CompetitorAnalysis: React.FC = () => {
 
       const analysisResponse = await generateWithClaude(analysisPrompt);
       setAnalysis(analysisResponse);
+
+      // Якщо увімкнено Gemini - аналізуємо відео креативи
+      if (useGemini) {
+        console.log('Starting Gemini video analysis...');
+        const videoAds = scrapedAds.filter(ad => ad.videoUrl);
+        
+        for (const ad of videoAds) {
+          try {
+            console.log(`Analyzing video ${ad.id} with Gemini...`);
+            const videoAnalysisResult = await analyzeVideoWithGemini(ad.videoUrl!);
+            setVideoAnalysis(prev => ({
+              ...prev,
+              [ad.id]: videoAnalysisResult
+            }));
+          } catch (videoErr: any) {
+            console.error(`Failed to analyze video ${ad.id}:`, videoErr);
+          }
+        }
+      }
 
     } catch (err: any) {
       setError(`Помилка при аналізі конкурентів: ${err.message}`);
@@ -131,6 +153,20 @@ const CompetitorAnalysis: React.FC = () => {
               <p className="text-xs text-gray-500 mt-1">Мінімум 10, максимум 100</p>
             </div>
           </div>
+          
+          {/* Опція Gemini */}
+          <div className="mt-4 flex items-center">
+            <input
+              type="checkbox"
+              id="useGemini"
+              checked={useGemini}
+              onChange={(e) => setUseGemini(e.target.checked)}
+              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            />
+            <label htmlFor="useGemini" className="ml-2 text-sm text-gray-700">
+              🎥 <strong>Глибокий аналіз відео</strong> через Gemini 2.5 Flash (детальний аналіз кадрів, динаміки, емоцій)
+            </label>
+          </div>
         </div>
 
         {/* Кнопка аналізу */}
@@ -188,10 +224,18 @@ const CompetitorAnalysis: React.FC = () => {
                       href={ad.videoUrl} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="text-xs text-blue-600 hover:underline"
+                      className="text-xs text-blue-600 hover:underline block mb-2"
                     >
                       🎥 Відкрити відео
                     </a>
+                  )}
+                  
+                  {/* Gemini аналіз відео */}
+                  {videoAnalysis[ad.id] && (
+                    <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded">
+                      <h4 className="text-xs font-semibold text-purple-900 mb-2">🤖 Gemini Video Analysis:</h4>
+                      <p className="text-xs text-purple-800 whitespace-pre-wrap">{videoAnalysis[ad.id]}</p>
+                    </div>
                   )}
                 </div>
               ))}
