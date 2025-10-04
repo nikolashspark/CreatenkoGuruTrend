@@ -58,8 +58,6 @@ export const generateWithClaude = async (prompt: string): Promise<string> => {
     const response = await fetch(CLAUDE_API_URL, {
       method: 'POST',
       headers: {
-        'x-api-key': CLAUDE_API_KEY,
-        'anthropic-version': '2023-06-01',
         'content-type': 'application/json'
       },
       body: JSON.stringify(requestBody)
@@ -67,7 +65,7 @@ export const generateWithClaude = async (prompt: string): Promise<string> => {
 
     if (!response.ok) {
       const errorData: ClaudeError = await response.json();
-      throw new Error(`Claude API Error: ${errorData.error?.message || response.statusText}`);
+      throw new Error(`Railway Backend Error: ${errorData.error || response.statusText}`);
     }
 
     const data: ClaudeResponse = await response.json();
