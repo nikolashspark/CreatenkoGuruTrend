@@ -35,9 +35,9 @@ const Generation = () => {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-8">Generation</h2>
+    <div className="w-full max-w-4xl mx-auto">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 lg:p-8">
+        <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-6 lg:mb-8">Generation</h2>
         
         <div className="space-y-6">
           {/* App Link Input */}
@@ -75,7 +75,7 @@ const Generation = () => {
           {/* Tested Performance Section */}
           <div>
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Tested Performance</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 lg:gap-6">
               <FileUpload
                 label="Good working"
                 onFileSelect={setGoodPerformanceFile}
