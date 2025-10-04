@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import FileUpload from '../components/FileUpload'
 
-const Generation: React.FC = () => {
+const Generation = () => {
   const [appLink, setAppLink] = useState('')
   const [prompt, setPrompt] = useState('')
   const [goodPerformanceFile, setGoodPerformanceFile] = useState<File | null>(null)

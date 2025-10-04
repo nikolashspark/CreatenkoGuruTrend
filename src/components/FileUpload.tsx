@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import { useState, useRef } from 'react'
 import { Upload, X } from 'lucide-react'
 
 interface FileUploadProps {
@@ -7,7 +7,7 @@ interface FileUploadProps {
   acceptedFile?: File | null
 }
 
-const FileUpload: React.FC<FileUploadProps> = ({ label, onFileSelect, acceptedFile }) => {
+const FileUpload = ({ label, onFileSelect, acceptedFile }: FileUploadProps) => {
   const [isDragOver, setIsDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 

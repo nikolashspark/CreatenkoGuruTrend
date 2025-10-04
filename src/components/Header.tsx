@@ -1,7 +1,6 @@
-import React from 'react'
 import { User } from 'lucide-react'
 
-const Header: React.FC = () => {
+const Header = () => {
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
