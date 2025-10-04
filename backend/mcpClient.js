@@ -1,4 +1,5 @@
-// MCP Client для Apify через HTTP API (простіше для AI агентів)
+// MCP Client для Apify через офіційний REST API
+// Документація: https://docs.apify.com/platform/integrations/api
 class MCPClient {
   constructor() {
     this.apifyToken = process.env.APIFY_API_TOKEN;
@@ -6,35 +7,81 @@ class MCPClient {
   }
 
   async callApifyActor(pageId, country = 'US') {
-    console.log(`Calling Apify Actor via API for page ${pageId} in ${country}`);
+    console.log(`Calling Apify Actor via REST API for page ${pageId} in ${country}`);
     
     if (!this.apifyToken) {
       throw new Error('APIFY_API_TOKEN not found in environment variables');
     }
 
-    // Використовуємоrun-sync-get-dataset-items для швидкого отримання результатів
-    const response = await fetch(`${this.apifyApiUrl}/acts/apify~facebook-ads-scraper/run-sync-get-dataset-items?timeout=120`, {
+    // Згідно з документацією: Authentication via Authorization header (рекомендовано)
+    // https://docs.apify.com/platform/integrations/api#authentication
+    const headers = {
+      'Authorization': `Bearer ${this.apifyToken}`,
+      'Content-Type': 'application/json'
+    };
+
+    // Крок 1: Запускаємо Actor
+    // https://docs.apify.com/api/v2#/reference/actors/run-collection/run-actor
+    console.log('Step 1: Starting Apify Actor...');
+    const runResponse = await fetch(`${this.apifyApiUrl}/acts/apify~facebook-ads-scraper/runs`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apifyToken}`,
-        'Content-Type': 'application/json'
-      },
+      headers: headers,
       body: JSON.stringify({
         search: `page_id:${pageId}`,
         country: country,
-        maxItems: 5,
-        proxyConfiguration: {
-          useApifyProxy: true
-        }
+        maxItems: 5
       })
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Apify API Error (${response.status}): ${errorText}`);
+    if (!runResponse.ok) {
+      const errorText = await runResponse.text();
+      throw new Error(`Apify API Error (${runResponse.status}): ${errorText}`);
     }
 
-    return await response.json();
+    const runData = await runResponse.json();
+    const runId = runData.data.id;
+    const defaultDatasetId = runData.data.defaultDatasetId;
+
+    console.log(`Actor started with run ID: ${runId}`);
+    console.log(`Waiting for completion...`);
+
+    // Крок 2: Чекаємо завершення (з timeout)
+    let status = runData.data.status;
+    let attempts = 0;
+    const maxAttempts = 12; // 2 хвилини (12 * 10 секунд)
+
+    while (status === 'RUNNING' && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 10000)); // 10 секунд
+      
+      const statusResponse = await fetch(`${this.apifyApiUrl}/acts/apify~facebook-ads-scraper/runs/${runId}`, {
+        headers: { 'Authorization': `Bearer ${this.apifyToken}` }
+      });
+
+      if (statusResponse.ok) {
+        const statusData = await statusResponse.json();
+        status = statusData.data.status;
+        console.log(`Run status: ${status}`);
+      }
+
+      attempts++;
+    }
+
+    if (status !== 'SUCCEEDED') {
+      throw new Error(`Actor run failed with status: ${status}`);
+    }
+
+    // Крок 3: Отримуємо результати з dataset
+    // https://docs.apify.com/api/v2#/reference/datasets/item-collection/get-items
+    console.log('Step 3: Fetching results from dataset...');
+    const datasetResponse = await fetch(`${this.apifyApiUrl}/datasets/${defaultDatasetId}/items`, {
+      headers: { 'Authorization': `Bearer ${this.apifyToken}` }
+    });
+
+    if (!datasetResponse.ok) {
+      throw new Error('Failed to fetch dataset items');
+    }
+
+    return await datasetResponse.json();
   }
 
   async scrapeFacebookAds(pageId, country = 'US') {
