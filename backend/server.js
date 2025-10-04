@@ -32,6 +32,16 @@ app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
+// API key check endpoint
+app.get('/api/check-key', (req, res) => {
+  res.json({
+    hasKey: !!process.env.CLAUDE_API_KEY,
+    keyLength: process.env.CLAUDE_API_KEY ? process.env.CLAUDE_API_KEY.length : 0,
+    startsWithSk: process.env.CLAUDE_API_KEY ? process.env.CLAUDE_API_KEY.startsWith('sk-') : false,
+    firstChars: process.env.CLAUDE_API_KEY ? process.env.CLAUDE_API_KEY.substring(0, 10) + '...' : 'No key'
+  });
+});
+
 // Claude API proxy endpoint
 app.post('/api/claude', async (req, res) => {
   try {
