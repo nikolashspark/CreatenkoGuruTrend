@@ -54,12 +54,8 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     console.log(`Scraping Facebook Ads for page ${pageId} in ${country}`);
 
     const input = {
-      pageIds: [pageId],
-      countries: [country],
-      adStatus: 'ACTIVE',
-      adType: 'ALL',
-      mediaType: 'ALL',
-      limit: 5,
+      startUrls: [`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${country}&is_targeted_country=false&media_type=all&search_type=page&view_all_page_id=${pageId}`],
+      maxItems: 5,
       maxAge: 30, // 30 днів
     };
 
