@@ -176,15 +176,25 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     }
 
     const actorId = 'curious_coder~facebook-ads-library-scraper';
+    
+    // Формуємо URL для Facebook Ads Library згідно з документацією Actor
+    const facebookAdsUrl = `https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${country}&view_all_page_id=${pageId}&search_type=page&media_type=all`;
+    
     const input = {
-      pageId: pageId,
-      country: country,
-      limit: 5
+      urls: [
+        {
+          url: facebookAdsUrl
+        }
+      ],
+      count: 5,
+      "scrapePageAds.activeStatus": "active",
+      "scrapePageAds.countryCode": country
     };
 
     console.log('Sending request to Apify API...');
     console.log('Actor ID:', actorId);
-    console.log('Input:', JSON.stringify(input));
+    console.log('Facebook Ads URL:', facebookAdsUrl);
+    console.log('Input:', JSON.stringify(input, null, 2));
     
     const runResponse = await fetch(`https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items`, {
       method: 'POST',
@@ -205,16 +215,17 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
 
     const items = await runResponse.json();
     console.log(`Received ${items.length} items from Apify`);
+    console.log('First item sample:', JSON.stringify(items[0], null, 2));
 
-    // Трансформуємо дані
+    // Трансформуємо дані (структура може відрізнятися залежно від Actor)
     const transformedAds = items.slice(0, 5).map((item) => ({
-      id: item.id || Math.random().toString(36).substr(2, 9),
-      text: item.text || item.adText || item.body || 'No text available',
-      imageUrl: item.imageUrl || item.thumbnail || null,
-      videoUrl: item.videoUrl || null,
-      pageName: item.pageName || pageId,
-      adType: item.format || item.type || 'Unknown',
-      createdAt: item.startDate || new Date().toISOString(),
+      id: item.id || item.adId || Math.random().toString(36).substr(2, 9),
+      text: item.adText || item.text || item.body || item.snapshot?.body_text || 'No text available',
+      imageUrl: item.imageUrl || item.snapshot?.link_url || item.snapshot?.cards?.[0]?.link_url || null,
+      videoUrl: item.videoUrl || item.snapshot?.video_hd_url || null,
+      pageName: item.pageName || item.page_name || pageId,
+      adType: item.adType || item.format || item.type || 'Unknown',
+      createdAt: item.startDate || item.ad_creation_time || new Date().toISOString(),
       country: country,
       pageId: pageId
     }));
