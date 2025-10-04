@@ -54,7 +54,12 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     console.log(`Scraping Facebook Ads for page ${pageId} in ${country}`);
 
     const input = {
-      queries: [`Facebook ads page ${pageId}`],
+      queries: [
+        {
+          query: `Facebook ads page ${pageId}`,
+          country: country
+        }
+      ],
       maxItems: 5,
     };
 
