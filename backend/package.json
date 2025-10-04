@@ -1,0 +1,18 @@
+{
+  "name": "claude-api-proxy",
+  "version": "1.0.0",
+  "description": "Railway backend proxy for Claude API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3"
+  },
+  "keywords": ["claude", "api", "proxy", "railway"],
+  "author": "",
+  "license": "ISC"
+}
