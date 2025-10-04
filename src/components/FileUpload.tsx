@@ -5,7 +5,7 @@ interface FileUploadProps {
   label: string
   onFileSelect: (file: File | null) => void
   acceptedFile?: File | null
-}
+} 
 
 const FileUpload = ({ label, onFileSelect, acceptedFile }: FileUploadProps) => {
   const [isDragOver, setIsDragOver] = useState(false)
