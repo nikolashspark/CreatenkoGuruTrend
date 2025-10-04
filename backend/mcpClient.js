@@ -1,70 +1,39 @@
-// MCP Client для Apify Facebook Ads Scraper
-const { spawn } = require('child_process');
-
+// MCP Client для Apify через HTTP API (простіше для AI агентів)
 class MCPClient {
   constructor() {
     this.apifyToken = process.env.APIFY_API_TOKEN;
+    this.apifyApiUrl = 'https://api.apify.com/v2';
   }
 
   async callApifyActor(pageId, country = 'US') {
-    return new Promise((resolve, reject) => {
-      console.log(`Calling Apify Actor via MCP for page ${pageId} in ${country}`);
+    console.log(`Calling Apify Actor via API for page ${pageId} in ${country}`);
+    
+    if (!this.apifyToken) {
+      throw new Error('APIFY_API_TOKEN not found in environment variables');
+    }
 
-      // Запускаємо MCP клієнт через npx
-      const mcp = spawn('npx', [
-        '-y',
-        '@apify/actors-mcp-server',
-        '--tools',
-        'apify/facebook-ads-scraper'
-      ], {
-        env: {
-          ...process.env,
-          APIFY_TOKEN: this.apifyToken
+    // Використовуємо run-sync-get-dataset-items для швидкого отримання результатів
+    const response = await fetch(`${this.apifyApiUrl}/acts/apify~facebook-ads-scraper/run-sync-get-dataset-items`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apifyToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        startUrls: [`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${country}&is_targeted_country=false&media_type=all&search_type=page&view_all_page_id=${pageId}`],
+        maxItems: 5,
+        proxyConfiguration: {
+          useApifyProxy: true
         }
-      });
-
-      let outputData = '';
-      let errorData = '';
-
-      mcp.stdout.on('data', (data) => {
-        outputData += data.toString();
-        console.log('MCP stdout:', data.toString());
-      });
-
-      mcp.stderr.on('data', (data) => {
-        errorData += data.toString();
-        console.error('MCP stderr:', data.toString());
-      });
-
-      mcp.on('close', (code) => {
-        if (code !== 0) {
-          reject(new Error(`MCP process exited with code ${code}: ${errorData}`));
-        } else {
-          try {
-            // Парсимо вихідні дані
-            const result = JSON.parse(outputData);
-            resolve(result);
-          } catch (e) {
-            reject(new Error(`Failed to parse MCP output: ${e.message}`));
-          }
-        }
-      });
-
-      // Відправляємо команду через stdin
-      const command = {
-        method: 'tools/call',
-        params: {
-          name: 'apify/facebook-ads-scraper',
-          arguments: {
-            startUrls: [`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${country}&is_targeted_country=false&media_type=all&search_type=page&view_all_page_id=${pageId}`],
-            maxItems: 5
-          }
-        }
-      };
-
-      mcp.stdin.write(JSON.stringify(command) + '\n');
-      mcp.stdin.end();
+      })
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Apify API Error (${response.status}): ${errorText}`);
+    }
+
+    return await response.json();
   }
 
   async scrapeFacebookAds(pageId, country = 'US') {
@@ -72,11 +41,11 @@ class MCPClient {
       const result = await this.callApifyActor(pageId, country);
       
       // Трансформуємо результат в наш формат
-      if (result.content && Array.isArray(result.content)) {
-        return result.content.slice(0, 5).map((item) => ({
+      if (Array.isArray(result)) {
+        return result.slice(0, 5).map((item) => ({
           id: item.id || Math.random().toString(36).substr(2, 9),
-          text: item.text || item.adText || 'No text available',
-          imageUrl: item.imageUrl || item.image || null,
+          text: item.text || item.adText || item.body || 'No text available',
+          imageUrl: item.imageUrl || item.image || item.thumbnail || null,
           videoUrl: item.videoUrl || item.video || null,
           pageName: item.pageName || item.page?.name || 'Unknown Page',
           adType: item.adType || item.type || 'Unknown',
@@ -86,7 +55,8 @@ class MCPClient {
         }));
       }
 
-      throw new Error('Invalid response format from MCP');
+      // Якщо немає результатів, повертаємо порожній масив
+      return [];
     } catch (error) {
       console.error('MCP Client Error:', error);
       throw error;

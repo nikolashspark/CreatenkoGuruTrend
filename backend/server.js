@@ -143,7 +143,8 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
       });
     }
 
-    // Використовуємо MCP для скрапінгу через Apify
+    // Використовуємо MCP Client для AI агента
+    console.log('Using MCP Client for AI agent...');
     const mcpClient = new MCPClient();
     const ads = await mcpClient.scrapeFacebookAds(pageId, country);
 
