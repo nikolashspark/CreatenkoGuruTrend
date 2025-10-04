@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const { WebSocketServer } = require('ws');
 const http = require('http');
 const MCPClient = require('./mcpClient');
@@ -32,24 +33,26 @@ const allowedOrigins = [
   'http://localhost:5178'
 ];
 
-// Додаємо CORS middleware з правильною обробкою preflight
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  
-  if (!origin || allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin || '*');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  }
-  
-  // Handle preflight
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  
-  next();
-});
+app.use(cors({
+  origin: function (origin, callback) {
+    // Дозволяємо запити без origin (наприклад, mobile apps, curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      // Не блокуємо повністю, просто не дозволяємо
+      callback(null, false);
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'X-Request-Id'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+}));
 
 app.use(express.json());
 
@@ -142,8 +145,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
       });
     }
 
-    // Використовуємо MCP Client для AI агента
-    console.log('Using MCP Client for AI agent...');
+    // Використовуємо MCP для скрапінгу через Apify
     const mcpClient = new MCPClient();
     const ads = await mcpClient.scrapeFacebookAds(pageId, country);
 
@@ -156,12 +158,9 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
 
   } catch (error) {
     console.error('Facebook Ads Error:', error);
-    console.error('Error stack:', error.stack);
-    console.error('APIFY_API_TOKEN exists:', !!process.env.APIFY_API_TOKEN);
     res.status(500).json({
       error: 'Failed to scrape Facebook Ads',
-      details: error.message,
-      hasApifyToken: !!process.env.APIFY_API_TOKEN
+      details: error.message
     });
   }
 });
