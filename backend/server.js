@@ -19,6 +19,10 @@ console.log('APIFY_API_TOKEN starts with apify_:', process.env.APIFY_API_TOKEN ?
 console.log('---');
 console.log('GEMINI_API_KEY exists:', !!process.env.GEMINI_API_KEY);
 console.log('GEMINI_API_KEY length:', process.env.GEMINI_API_KEY ? process.env.GEMINI_API_KEY.length : 0);
+console.log('---');
+console.log('VERTEX_AI_CREDENTIALS exists:', !!process.env.VERTEX_AI_CREDENTIALS);
+console.log('VERTEX_AI_PROJECT_ID exists:', !!process.env.VERTEX_AI_PROJECT_ID);
+console.log('VERTEX_AI_LOCATION exists:', !!process.env.VERTEX_AI_LOCATION);
 console.log('================================');
 
 // Create HTTP server
@@ -302,7 +306,135 @@ app.post('/api/claude', async (req, res) => {
   }
 });
 
-// Gemini API proxy endpoint для аналізу відео
+// Vertex AI endpoint для аналізу відео
+app.post('/api/vertex/analyze-video', async (req, res) => {
+  try {
+    console.log('Received request to Vertex AI for video analysis');
+
+    if (!process.env.VERTEX_AI_CREDENTIALS) {
+      return res.status(401).json({ error: 'VERTEX_AI_CREDENTIALS not configured' });
+    }
+
+    const { videoUrl, prompt } = req.body;
+
+    if (!videoUrl) {
+      return res.status(400).json({ error: 'videoUrl is required' });
+    }
+
+    // Parse Service Account credentials
+    const credentials = JSON.parse(process.env.VERTEX_AI_CREDENTIALS);
+    const projectId = process.env.VERTEX_AI_PROJECT_ID || credentials.project_id;
+    const location = process.env.VERTEX_AI_LOCATION || 'us-central1';
+
+    console.log('Step 1: Getting OAuth2 access token...');
+
+    // Отримуємо OAuth2 токен
+    const jwtToken = await createJWT(credentials);
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwtToken}`
+    });
+
+    if (!tokenResponse.ok) {
+      throw new Error('Failed to get OAuth2 token');
+    }
+
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    console.log('Step 2: Downloading video from:', videoUrl);
+
+    // Завантажуємо відео
+    const videoResponse = await fetch(videoUrl);
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+    }
+
+    const videoBuffer = await videoResponse.arrayBuffer();
+    const videoBase64 = Buffer.from(videoBuffer).toString('base64');
+    console.log(`Video downloaded: ${(videoBuffer.byteLength / 1024 / 1024).toFixed(2)} MB`);
+
+    console.log('Step 3: Analyzing video with Vertex AI Gemini...');
+
+    // Викликаємо Vertex AI
+    const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-exp:generateContent`;
+
+    const requestBody = {
+      contents: [{
+        role: 'user',
+        parts: [
+          {
+            inlineData: {
+              mimeType: 'video/mp4',
+              data: videoBase64
+            }
+          },
+          {
+            text: prompt || "Проаналізуй цей відео креатив детально: стиль, динаміка, візуальні ефекти, текст на відео, емоції, CTA, цільова аудиторія. Надай конкретні рекомендації."
+          }
+        ]
+      }]
+    };
+
+    const analysisResponse = await fetch(vertexUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!analysisResponse.ok) {
+      const errorData = await analysisResponse.json();
+      console.error('Vertex AI Error:', errorData);
+      throw new Error(`Vertex AI Error: ${errorData.error?.message || analysisResponse.statusText}`);
+    }
+
+    const data = await analysisResponse.json();
+    console.log('Vertex AI analysis completed successfully');
+
+    res.json(data);
+  } catch (error) {
+    console.error('Server Error:', error);
+    res.status(500).json({
+      error: 'Failed to analyze video with Vertex AI',
+      details: error.message
+    });
+  }
+});
+
+// Helper function для створення JWT для Google OAuth2
+async function createJWT(credentials) {
+  const crypto = require('crypto');
+  
+  const header = {
+    alg: 'RS256',
+    typ: 'JWT'
+  };
+
+  const now = Math.floor(Date.now() / 1000);
+  const claim = {
+    iss: credentials.client_email,
+    scope: 'https://www.googleapis.com/auth/cloud-platform',
+    aud: 'https://oauth2.googleapis.com/token',
+    exp: now + 3600,
+    iat: now
+  };
+
+  const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
+  const encodedClaim = Buffer.from(JSON.stringify(claim)).toString('base64url');
+  const signatureInput = `${encodedHeader}.${encodedClaim}`;
+
+  const sign = crypto.createSign('RSA-SHA256');
+  sign.update(signatureInput);
+  const signature = sign.sign(credentials.private_key, 'base64url');
+
+  return `${signatureInput}.${signature}`;
+}
+
+// Gemini API proxy endpoint для аналізу відео через File API (fallback)
 app.post('/api/gemini/analyze-video', async (req, res) => {
   try {
     console.log('Received request to Gemini API for video analysis');
@@ -317,7 +449,70 @@ app.post('/api/gemini/analyze-video', async (req, res) => {
       return res.status(400).json({ error: 'videoUrl is required' });
     }
 
-    // Gemini 2.5 Flash API endpoint
+    console.log('Step 1: Downloading video from:', videoUrl);
+
+    // Крок 1: Завантажити відео з Facebook
+    const videoResponse = await fetch(videoUrl);
+    if (!videoResponse.ok) {
+      throw new Error(`Failed to download video: ${videoResponse.statusText}`);
+    }
+
+    const videoBuffer = await videoResponse.arrayBuffer();
+    const videoSize = videoBuffer.byteLength;
+    console.log(`Video downloaded: ${(videoSize / 1024 / 1024).toFixed(2)} MB`);
+
+    // Крок 2: Завантажити відео в Gemini File API (resumable upload)
+    console.log('Step 2: Uploading video to Gemini File API...');
+    
+    const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${process.env.GEMINI_API_KEY}`;
+    
+    // Спочатку відправляємо metadata + відео одним запитом
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start, upload, finalize',
+        'X-Goog-Upload-Header-Content-Length': videoSize.toString(),
+        'X-Goog-Upload-Header-Content-Type': 'video/mp4',
+        'Content-Type': 'video/mp4'
+      },
+      body: videoBuffer
+    });
+
+    if (!uploadResponse.ok) {
+      const errorData = await uploadResponse.text();
+      console.error('File API Upload Error:', errorData);
+      throw new Error(`Failed to upload video: ${uploadResponse.statusText}`);
+    }
+
+    const uploadData = await uploadResponse.json();
+    const fileUri = uploadData.file.uri;
+    console.log('Video uploaded to File API:', fileUri);
+
+    // Крок 3: Чекаємо поки відео обробиться
+    console.log('Step 3: Waiting for video processing...');
+    let fileState = 'PROCESSING';
+    let attempts = 0;
+    const maxAttempts = 30; // 30 секунд
+
+    while (fileState === 'PROCESSING' && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      const statusResponse = await fetch(`${uploadData.file.name}?key=${process.env.GEMINI_API_KEY}`);
+      const statusData = await statusResponse.json();
+      fileState = statusData.state;
+      
+      console.log(`File state: ${fileState} (attempt ${attempts + 1}/${maxAttempts})`);
+      attempts++;
+    }
+
+    if (fileState !== 'ACTIVE') {
+      throw new Error(`Video processing failed: ${fileState}`);
+    }
+
+    // Крок 4: Аналізуємо відео через Gemini 2.0 Flash
+    console.log('Step 4: Analyzing video with Gemini 2.0 Flash...');
+    
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
     const requestBody = {
@@ -326,7 +521,7 @@ app.post('/api/gemini/analyze-video', async (req, res) => {
           {
             fileData: {
               mimeType: "video/mp4",
-              fileUri: videoUrl
+              fileUri: fileUri
             }
           },
           {
@@ -336,10 +531,7 @@ app.post('/api/gemini/analyze-video', async (req, res) => {
       }]
     };
 
-    console.log('Sending request to Gemini API...');
-    console.log('Video URL:', videoUrl);
-
-    const response = await fetch(geminiUrl, {
+    const analysisResponse = await fetch(geminiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -347,22 +539,20 @@ app.post('/api/gemini/analyze-video', async (req, res) => {
       body: JSON.stringify(requestBody)
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Gemini API Error:', errorData);
-      return res.status(response.status).json({
-        error: `Gemini API Error: ${errorData.error?.message || response.statusText}`
-      });
+    if (!analysisResponse.ok) {
+      const errorData = await analysisResponse.json();
+      console.error('Gemini Analysis Error:', errorData);
+      throw new Error(`Gemini API Error: ${errorData.error?.message || analysisResponse.statusText}`);
     }
 
-    const data = await response.json();
-    console.log('Gemini API Response received');
+    const data = await analysisResponse.json();
+    console.log('Gemini analysis completed successfully');
 
     res.json(data);
   } catch (error) {
     console.error('Server Error:', error);
     res.status(500).json({
-      error: 'Failed to fetch from Gemini API',
+      error: 'Failed to analyze video',
       details: error.message
     });
   }

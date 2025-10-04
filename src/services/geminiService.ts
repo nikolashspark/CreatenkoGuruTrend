@@ -8,15 +8,15 @@ export interface GeminiVideoAnalysis {
   safetyRatings?: any[];
 }
 
-// Функція для аналізу відео через Gemini 2.5 Flash
+// Функція для аналізу відео через Vertex AI Gemini
 export const analyzeVideoWithGemini = async (
   videoUrl: string,
   customPrompt?: string
 ): Promise<string> => {
   try {
-    console.log(`Analyzing video with Gemini: ${videoUrl}`);
+    console.log(`Analyzing video with Vertex AI: ${videoUrl}`);
 
-    const response = await fetch(`${RAILWAY_API_URL}/api/gemini/analyze-video`, {
+    const response = await fetch(`${RAILWAY_API_URL}/api/vertex/analyze-video`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -44,15 +44,15 @@ export const analyzeVideoWithGemini = async (
 
     const data = await response.json();
 
-    // Gemini повертає відповідь в форматі candidates[0].content.parts[0].text
+    // Vertex AI повертає відповідь в форматі candidates[0].content.parts[0].text
     if (data.candidates && data.candidates.length > 0) {
       const content = data.candidates[0].content;
-      if (content.parts && content.parts.length > 0) {
+      if (content && content.parts && content.parts.length > 0) {
         return content.parts[0].text;
       }
     }
 
-    throw new Error('Invalid response format from Gemini API');
+    throw new Error('Invalid response format from Vertex AI');
 
   } catch (error: any) {
     console.error('Gemini Video Analysis Error:', error);

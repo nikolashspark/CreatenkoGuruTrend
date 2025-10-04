@@ -164,7 +164,7 @@ const CompetitorAnalysis: React.FC = () => {
               className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
             />
             <label htmlFor="useGemini" className="ml-2 text-sm text-gray-700">
-              🎥 <strong>Глибокий аналіз відео</strong> через Gemini 2.5 Flash (детальний аналіз кадрів, динаміки, емоцій)
+              🎥 <strong>Глибокий аналіз відео</strong> через Vertex AI Gemini (детальний аналіз кадрів, динаміки, емоцій) - використовує ваші $300 кредитів
             </label>
           </div>
         </div>
