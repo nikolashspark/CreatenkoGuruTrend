@@ -12,7 +12,7 @@ const Layout = ({ children }: LayoutProps) => {
       <Header />
       <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 p-4 lg:p-8 max-w-full flex flex-col">
+        <main className="flex-1 p-4 lg:p-8 max-w-full flex flex-col overflow-y-auto">
           {children}
         </main>
       </div>
