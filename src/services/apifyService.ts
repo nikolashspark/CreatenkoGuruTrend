@@ -20,10 +20,11 @@ export interface FacebookAdData {
 // Функція для скрапінгу Facebook Ads через Railway backend
 export const scrapeFacebookAds = async (
   pageId: string,
-  country: string = 'US'
+  country: string = 'US',
+  count: number = 10
 ): Promise<FacebookAdData[]> => {
   try {
-    console.log(`Scraping Facebook Ads for page ${pageId} in ${country}`);
+    console.log(`Scraping Facebook Ads for page ${pageId} in ${country}, count: ${count}`);
 
     const response = await fetch(`${RAILWAY_API_URL}/api/apify/facebook-ads`, {
       method: 'POST',
@@ -32,7 +33,8 @@ export const scrapeFacebookAds = async (
       },
       body: JSON.stringify({
         pageId,
-        country
+        country,
+        count
       })
     });
 

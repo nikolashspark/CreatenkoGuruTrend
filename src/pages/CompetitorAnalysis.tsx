@@ -19,6 +19,7 @@ const CompetitorAnalysis: React.FC = () => {
   const [analysis, setAnalysis] = useState<string | null>(null);
   const [pageId, setPageId] = useState('161970940341938');
   const [country, setCountry] = useState('US');
+  const [count, setCount] = useState(10);
 
   const analyzeCompetitors = async () => {
     setIsLoading(true);
@@ -34,8 +35,8 @@ const CompetitorAnalysis: React.FC = () => {
       }
 
       // Скрапимо Facebook Ads через Apify
-      console.log(`Scraping Facebook Ads for page ${pageId} in ${country}`);
-      const scrapedAds = await scrapeFacebookAds(pageId, country);
+      console.log(`Scraping Facebook Ads for page ${pageId} in ${country}, count: ${count}`);
+      const scrapedAds = await scrapeFacebookAds(pageId, country, count);
       setAds(scrapedAds);
 
       // Аналізуємо отримані дані через Claude
@@ -86,7 +87,7 @@ const CompetitorAnalysis: React.FC = () => {
         {/* Параметри аналізу */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Параметри аналізу</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Page ID
@@ -114,6 +115,21 @@ const CompetitorAnalysis: React.FC = () => {
                 <option value="DE">Німеччина</option>
                 <option value="FR">Франція</option>
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Кількість креативів
+              </label>
+              <input
+                type="number"
+                value={count}
+                onChange={(e) => setCount(Math.max(10, parseInt(e.target.value) || 10))}
+                min="10"
+                max="100"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="10"
+              />
+              <p className="text-xs text-gray-500 mt-1">Мінімум 10, максимум 100</p>
             </div>
           </div>
         </div>
