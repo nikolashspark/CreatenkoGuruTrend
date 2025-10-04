@@ -42,7 +42,9 @@ const CompetitorAnalysis: React.FC = () => {
         - Сторінка: ${ad.pageName}
         - Тип: ${ad.adType}
         - Текст: ${ad.text}
-        - Дата: ${ad.createdAt}
+        - Дата: ${new Date(ad.createdAt).toLocaleDateString()}
+        ${ad.videoUrl ? `- Відео URL: ${ad.videoUrl}` : ''}
+        ${ad.imageUrl ? `- Зображення URL: ${ad.imageUrl}` : ''}
         `).join('\n')}
         
         Проведи детальний аналіз:
@@ -52,6 +54,9 @@ const CompetitorAnalysis: React.FC = () => {
         4. Цільова аудиторія (хто може бути ціллю)
         5. Унікальні особливості бренду
         6. Рекомендації для нашого бренду на основі аналізу
+        
+        ВАЖЛИВО: Для відео креативів я надав URL. Якщо потрібен глибший аналіз відео (кадри, динаміка, візуальні ефекти), 
+        рекомендую використати Gemini 2.5 Flash з підтримкою відео через API.
         
         Надай конкретні рекомендації для створення власних креативів.
       `;
@@ -155,20 +160,39 @@ const CompetitorAnalysis: React.FC = () => {
                 <div key={ad.id || index} className="border border-gray-200 rounded-lg p-4">
                   <div className="mb-3">
                     <h3 className="font-semibold text-gray-900">{ad.pageName}</h3>
-                    <p className="text-sm text-gray-500">{ad.adType} • {ad.createdAt}</p>
+                    <p className="text-sm text-gray-500">{ad.adType} • {new Date(ad.createdAt).toLocaleDateString()}</p>
                   </div>
                   
-                  {ad.imageUrl && (
+                  {ad.videoUrl ? (
+                    <div className="mb-3">
+                      <video 
+                        src={ad.videoUrl} 
+                        controls 
+                        className="w-full h-48 object-cover rounded"
+                        poster={ad.imageUrl || undefined}
+                      />
+                    </div>
+                  ) : ad.imageUrl ? (
                     <div className="mb-3">
                       <img 
                         src={ad.imageUrl} 
                         alt="Ad creative" 
-                        className="w-full h-32 object-cover rounded"
+                        className="w-full h-48 object-cover rounded"
                       />
                     </div>
-                  )}
+                  ) : null}
                   
-                  <p className="text-sm text-gray-700">{ad.text}</p>
+                  <p className="text-sm text-gray-700 mb-2">{ad.text}</p>
+                  {ad.videoUrl && (
+                    <a 
+                      href={ad.videoUrl} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-xs text-blue-600 hover:underline"
+                    >
+                      🎥 Відкрити відео
+                    </a>
+                  )}
                 </div>
               ))}
             </div>

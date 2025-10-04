@@ -226,18 +226,27 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
       throw new Error('No ads found for this page');
     }
 
-    // Трансформуємо дані (структура може відрізнятися залежно від Actor)
-    const transformedAds = items.map((item) => ({
-      id: item.id || item.adId || Math.random().toString(36).substr(2, 9),
-      text: item.adText || item.text || item.body || item.snapshot?.body_text || 'No text available',
-      imageUrl: item.imageUrl || item.snapshot?.link_url || item.snapshot?.cards?.[0]?.link_url || null,
-      videoUrl: item.videoUrl || item.snapshot?.video_hd_url || null,
-      pageName: item.pageName || item.page_name || pageId,
-      adType: item.adType || item.format || item.type || 'Unknown',
-      createdAt: item.startDate || item.ad_creation_time || new Date().toISOString(),
-      country: country,
-      pageId: pageId
-    }));
+    // Трансформуємо дані згідно з реальною структурою Apify
+    const transformedAds = items.map((item) => {
+      const snapshot = item.snapshot || {};
+      const firstCard = snapshot.cards?.[0] || {};
+      
+      return {
+        id: item.ad_archive_id || Math.random().toString(36).substr(2, 9),
+        text: firstCard.body || firstCard.title || snapshot.caption || 'No text available',
+        imageUrl: firstCard.resized_image_url || firstCard.original_image_url || firstCard.video_preview_image_url || null,
+        videoUrl: firstCard.video_hd_url || firstCard.video_sd_url || null,
+        pageName: snapshot.page_name || pageId,
+        adType: firstCard.video_hd_url ? 'VIDEO' : 'IMAGE',
+        createdAt: item.start_date || new Date().toISOString(),
+        country: country,
+        pageId: item.page_id || pageId,
+        // Додаткові дані для аналізу
+        ctaText: firstCard.cta_text || snapshot.cta_text || null,
+        linkUrl: firstCard.link_url || null,
+        publisherPlatforms: item.publisher_platform || []
+      };
+    });
 
     res.json({
       success: true,
