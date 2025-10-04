@@ -8,6 +8,7 @@ interface LayoutProps {
 const Layout = ({ children }: LayoutProps) => {
   return (
     <div className="h-screen bg-gray-50 flex flex-col">
+      {/* Fixed height layout - no vertical scroll */}
       <Header />
       <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
         <Sidebar />

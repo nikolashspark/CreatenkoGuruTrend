@@ -37,6 +37,7 @@ const Generation = () => {
   return (
     <div className="w-full max-w-4xl mx-auto h-full flex flex-col">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 lg:p-8 flex-1 flex flex-col min-h-0">
+        {/* Content scrolls only when it overflows */}
         <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-6 lg:mb-8 flex-shrink-0">Generation</h2>
         
         <div className="flex-1 overflow-y-auto space-y-6">
