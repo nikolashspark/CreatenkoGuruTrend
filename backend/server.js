@@ -7,6 +7,13 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Діагностика API ключа
+console.log('=== CLAUDE API KEY DIAGNOSTICS ===');
+console.log('CLAUDE_API_KEY exists:', !!process.env.CLAUDE_API_KEY);
+console.log('CLAUDE_API_KEY length:', process.env.CLAUDE_API_KEY ? process.env.CLAUDE_API_KEY.length : 0);
+console.log('CLAUDE_API_KEY starts with sk-:', process.env.CLAUDE_API_KEY ? process.env.CLAUDE_API_KEY.startsWith('sk-') : false);
+console.log('================================');
+
 // Create HTTP server
 const server = http.createServer(app);
 
