@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { generateWithClaude } from '../services/claudeApi';
-import { scrapeFacebookAds, testApifyConnection } from '../services/apifyService';
+import { scrapeFacebookAds } from '../services/apifyService';
 
 interface CompetitorAd {
   id: string;
@@ -28,12 +28,6 @@ const CompetitorAnalysis: React.FC = () => {
     setAnalysis(null);
 
     try {
-      // Спочатку перевіряємо підключення до Apify
-      const isApifyConnected = await testApifyConnection();
-      if (!isApifyConnected) {
-        throw new Error('Не вдалося підключитися до Apify API');
-      }
-
       // Скрапимо Facebook Ads через Apify
       console.log(`Scraping Facebook Ads for page ${pageId} in ${country}, count: ${count}`);
       const scrapedAds = await scrapeFacebookAds(pageId, country, count);
