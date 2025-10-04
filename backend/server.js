@@ -74,6 +74,22 @@ app.get('/api/check-key', (req, res) => {
   });
 });
 
+// Test endpoint для перевірки Apify конфігурації
+app.get('/api/apify/facebook-ads', (req, res) => {
+  res.json({
+    status: 'OK',
+    message: 'Use POST method to scrape Facebook Ads',
+    apifyTokenPresent: !!process.env.APIFY_API_TOKEN,
+    apifyTokenLength: process.env.APIFY_API_TOKEN ? process.env.APIFY_API_TOKEN.length : 0,
+    endpoint: 'POST /api/apify/facebook-ads',
+    requiredFields: ['pageId', 'country (optional)'],
+    example: {
+      pageId: '161970940341938',
+      country: 'US'
+    }
+  });
+});
+
 // Facebook Ads Scraper endpoint через MCP
 app.post('/api/apify/facebook-ads', async (req, res) => {
   try {
