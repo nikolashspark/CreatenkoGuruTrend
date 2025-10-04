@@ -64,7 +64,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     };
 
     // Запускаємо Apify Actor
-    const runResponse = await fetch('https://api.apify.com/v2/acts/apify/facebook-ads-scraper/runs', {
+    const runResponse = await fetch('https://api.apify.com/v2/acts/apify~facebook-ads-scraper/runs', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${process.env.APIFY_API_TOKEN}`,
@@ -93,7 +93,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     while (status === 'RUNNING' && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 10000)); // 10 секунд
       
-      const statusResponse = await fetch(`https://api.apify.com/v2/acts/apify/facebook-ads-scraper/runs/${runId}`, {
+      const statusResponse = await fetch(`https://api.apify.com/v2/acts/apify~facebook-ads-scraper/runs/${runId}`, {
         headers: {
           'Authorization': `Bearer ${process.env.APIFY_API_TOKEN}`,
         }
@@ -113,7 +113,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     }
 
     // Отримуємо результати
-    const datasetResponse = await fetch(`https://api.apify.com/v2/acts/apify/facebook-ads-scraper/runs/${runId}/dataset/items`, {
+    const datasetResponse = await fetch(`https://api.apify.com/v2/acts/apify~facebook-ads-scraper/runs/${runId}/dataset/items`, {
       headers: {
         'Authorization': `Bearer ${process.env.APIFY_API_TOKEN}`,
       }
