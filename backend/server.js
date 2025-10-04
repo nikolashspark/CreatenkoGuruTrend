@@ -176,7 +176,8 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     }
 
     // Запускаємо Apify Actor через HTTP API
-    const actorId = 'apify/facebook-ads-scraper';
+    // Використовуємо правильний Actor ID з тильдою
+    const actorId = 'apify~facebook-ads-scraper';
     const input = {
       startUrls: [`https://www.facebook.com/ads/library/?active_status=active&ad_type=all&country=${country}&view_all_page_id=${pageId}`],
       maxItems: 5
