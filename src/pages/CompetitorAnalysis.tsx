@@ -69,21 +69,29 @@ const CompetitorAnalysis: React.FC = () => {
 
       // Якщо увімкнено Gemini - аналізуємо відео креативи
       if (useGemini) {
-        console.log('Starting Gemini video analysis...');
+        console.log('🎥 Starting Vertex AI video analysis...');
+        console.log('useGemini checkbox is:', useGemini);
         const videoAds = scrapedAds.filter(ad => ad.videoUrl);
+        console.log(`Found ${videoAds.length} video ads to analyze`);
         
         for (const ad of videoAds) {
           try {
-            console.log(`Analyzing video ${ad.id} with Gemini...`);
+            console.log(`🔄 Analyzing video ${ad.id} with Vertex AI...`);
+            console.log(`Video URL: ${ad.videoUrl}`);
             const videoAnalysisResult = await analyzeVideoWithGemini(ad.videoUrl!);
+            console.log(`✅ Video ${ad.id} analyzed successfully`);
             setVideoAnalysis(prev => ({
               ...prev,
               [ad.id]: videoAnalysisResult
             }));
           } catch (videoErr: any) {
-            console.error(`Failed to analyze video ${ad.id}:`, videoErr);
+            console.error(`❌ Failed to analyze video ${ad.id}:`, videoErr);
+            setError(`Помилка аналізу відео ${ad.id}: ${videoErr.message}`);
           }
         }
+        console.log('🎉 All videos analyzed');
+      } else {
+        console.log('⚠️ Vertex AI video analysis is disabled (checkbox not checked)');
       }
 
     } catch (err: any) {
