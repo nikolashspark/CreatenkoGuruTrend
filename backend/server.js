@@ -2,10 +2,17 @@ const express = require('express');
 const cors = require('cors');
 const { WebSocketServer } = require('ws');
 const http = require('http');
+const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Ініціалізація Supabase клієнта
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 // Діагностика API ключів
 console.log('=== API KEYS DIAGNOSTICS ===');
@@ -23,6 +30,9 @@ console.log('---');
 console.log('VERTEX_AI_CREDENTIALS exists:', !!process.env.VERTEX_AI_CREDENTIALS);
 console.log('VERTEX_AI_PROJECT_ID exists:', !!process.env.VERTEX_AI_PROJECT_ID);
 console.log('VERTEX_AI_LOCATION exists:', !!process.env.VERTEX_AI_LOCATION);
+console.log('---');
+console.log('SUPABASE_URL exists:', !!process.env.SUPABASE_URL);
+console.log('SUPABASE_SERVICE_KEY exists:', !!process.env.SUPABASE_SERVICE_KEY);
 console.log('================================');
 
 // Create HTTP server
@@ -233,31 +243,124 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
       throw new Error('No ads found for this page');
     }
 
-    // Трансформуємо дані згідно з реальною структурою Apify
-    const transformedAds = items.map((item) => {
-      const snapshot = item.snapshot || {};
-      const firstCard = snapshot.cards?.[0] || {};
-      
-      return {
-        id: item.ad_archive_id || Math.random().toString(36).substr(2, 9),
-        text: firstCard.body || firstCard.title || snapshot.caption || 'No text available',
-        imageUrl: firstCard.resized_image_url || firstCard.original_image_url || firstCard.video_preview_image_url || null,
-        videoUrl: firstCard.video_hd_url || firstCard.video_sd_url || null,
-        pageName: snapshot.page_name || pageId,
-        adType: firstCard.video_hd_url ? 'VIDEO' : 'IMAGE',
-        createdAt: item.start_date || new Date().toISOString(),
+    // Крок 1: Створюємо запис про запит в Supabase
+    console.log('💾 Saving request to Supabase...');
+    const { data: requestData, error: requestError } = await supabase
+      .from('apify_requests')
+      .insert({
+        page_id: pageId,
         country: country,
-        pageId: item.page_id || pageId,
-        // Додаткові дані для аналізу
-        ctaText: firstCard.cta_text || snapshot.cta_text || null,
-        linkUrl: firstCard.link_url || null,
-        publisherPlatforms: item.publisher_platform || []
-      };
-    });
+        count: count
+      })
+      .select()
+      .single();
+
+    if (requestError) {
+      console.error('❌ Supabase request error:', requestError);
+      throw new Error(`Failed to save request: ${requestError.message}`);
+    }
+
+    const requestId = requestData.id;
+    console.log('✅ Request saved with ID:', requestId);
+
+    // Крок 2: Трансформуємо та зберігаємо дані в Supabase
+    console.log('💾 Saving ads to Supabase...');
+    const transformedAds = [];
+    const adsToSave = [];
+
+    for (const item of items) {
+      const snapshot = item.snapshot || {};
+      const cards = snapshot.cards || [];
+      
+      // Якщо немає cards, створюємо один запис з основними даними
+      if (cards.length === 0) {
+        const adData = {
+          request_id: requestId,
+          ad_archive_id: item.ad_archive_id || `no-id-${Date.now()}`,
+          media_url: null,
+          media_type: 'image',
+          title: snapshot.caption || 'No title',
+          ad_link: null,
+          caption: snapshot.caption || null,
+          cta_text: snapshot.cta_text || null,
+          page_name: snapshot.page_name || pageId,
+          card_index: 0
+        };
+        
+        adsToSave.push(adData);
+        transformedAds.push({
+          id: item.ad_archive_id,
+          text: adData.title,
+          imageUrl: null,
+          videoUrl: null,
+          pageName: adData.page_name,
+          adType: 'IMAGE',
+          createdAt: item.start_date || new Date().toISOString(),
+          country: country,
+          pageId: item.page_id || pageId,
+          ctaText: adData.cta_text,
+          linkUrl: null,
+          publisherPlatforms: item.publisher_platform || []
+        });
+      } else {
+        // Зберігаємо кожну card окремо
+        cards.forEach((card, index) => {
+          const mediaUrl = card.video_hd_url || card.video_sd_url || 
+                          card.resized_image_url || card.original_image_url || null;
+          const mediaType = (card.video_hd_url || card.video_sd_url) ? 'video' : 'image';
+          
+          const adData = {
+            request_id: requestId,
+            ad_archive_id: item.ad_archive_id || `no-id-${Date.now()}-${index}`,
+            media_url: mediaUrl,
+            media_type: mediaType,
+            title: card.title || card.body || snapshot.caption || 'No title',
+            ad_link: card.link_url || null,
+            caption: card.caption || snapshot.caption || null,
+            cta_text: card.cta_text || snapshot.cta_text || null,
+            page_name: snapshot.page_name || pageId,
+            card_index: index
+          };
+          
+          adsToSave.push(adData);
+          transformedAds.push({
+            id: `${item.ad_archive_id}-${index}`,
+            text: adData.title,
+            imageUrl: mediaType === 'image' ? mediaUrl : (card.video_preview_image_url || null),
+            videoUrl: mediaType === 'video' ? mediaUrl : null,
+            pageName: adData.page_name,
+            adType: mediaType.toUpperCase(),
+            createdAt: item.start_date || new Date().toISOString(),
+            country: country,
+            pageId: item.page_id || pageId,
+            ctaText: adData.cta_text,
+            linkUrl: adData.ad_link,
+            publisherPlatforms: item.publisher_platform || []
+          });
+        });
+      }
+    }
+
+    // Зберігаємо всі оголошення в Supabase
+    if (adsToSave.length > 0) {
+      const { data: savedAds, error: adsError } = await supabase
+        .from('facebook_ads')
+        .insert(adsToSave)
+        .select();
+
+      if (adsError) {
+        console.error('❌ Supabase ads error:', adsError);
+        throw new Error(`Failed to save ads: ${adsError.message}`);
+      }
+
+      console.log(`✅ Saved ${savedAds.length} ads to Supabase`);
+    }
 
     res.json({
       success: true,
       ads: transformedAds,
+      requestId: requestId,
+      savedCount: adsToSave.length,
       source: 'apify-real'
     });
 

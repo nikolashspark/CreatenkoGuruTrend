@@ -8,13 +8,19 @@
     "dev": "node server.js"
   },
   "dependencies": {
-    "express": "^5.1.0",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "@supabase/supabase-js": "^2.58.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
-    "ws": "^8.14.2",
-    "@modelcontextprotocol/sdk": "^1.0.4"
+    "express": "^5.1.0",
+    "ws": "^8.14.2"
   },
-  "keywords": ["claude", "api", "proxy", "railway"],
+  "keywords": [
+    "claude",
+    "api",
+    "proxy",
+    "railway"
+  ],
   "author": "",
   "license": "ISC"
 }
