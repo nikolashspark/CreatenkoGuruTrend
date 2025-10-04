@@ -23,7 +23,7 @@ const Generation = () => {
         Проаналізуй цей файл (${type === 'good' ? 'хороша' : 'погана'} продуктивність):
         Назва файлу: ${file.name}
         Розмір: ${file.size} байт
-        
+         
         Вміст:
         ${content.substring(0, 2000)}${content.length > 2000 ? '...' : ''}
         
