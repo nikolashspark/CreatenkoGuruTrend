@@ -71,6 +71,10 @@ wss.on('connection', (ws, req) => {
       console.log('📨 Received WebSocket message:', data);
       
       if (data.type === 'claude_request') {
+        // Log API key status for debugging
+        console.log('🔑 API Key status:', process.env.CLAUDE_API_KEY ? 'Present' : 'Missing');
+        console.log('🔑 API Key length:', process.env.CLAUDE_API_KEY?.length || 0);
+        
         // Send request to Claude API
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -115,6 +119,8 @@ server.listen(PORT, () => {
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`🤖 Claude API proxy: http://localhost:${PORT}/api/claude`);
   console.log(`🔌 WebSocket server: ws://localhost:${PORT}`);
+  console.log(`🔑 API Key status: ${process.env.CLAUDE_API_KEY ? 'Present' : 'Missing'}`);
+  console.log(`🔑 API Key length: ${process.env.CLAUDE_API_KEY?.length || 0}`);
 });
 
 module.exports = app;
