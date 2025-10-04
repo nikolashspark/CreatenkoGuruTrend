@@ -22,8 +22,29 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
 // Middleware
+// Дозволяємо localhost для розробки і Vercel для продакшену
+const allowedOrigins = [
+  'https://createnko-guru-trend.vercel.app',
+  'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
+  'http://localhost:5176',
+  'http://localhost:5177',
+  'http://localhost:5178'
+];
+
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175', 'http://localhost:5176', 'http://localhost:5177', 'http://localhost:5178', 'https://createnko-guru-trend.vercel.app'],
+  origin: function (origin, callback) {
+    // Дозволяємо запити без origin (наприклад, mobile apps, curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
