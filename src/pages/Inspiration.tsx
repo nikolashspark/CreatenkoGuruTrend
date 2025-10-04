@@ -2,8 +2,8 @@ import { Lightbulb, Sparkles, TrendingUp } from 'lucide-react'
 
 const Inspiration = () => {
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 lg:p-8">
+    <div className="w-full max-w-4xl mx-auto h-full">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 lg:p-8 h-full overflow-y-auto">
         <div className="text-center mb-6 lg:mb-8">
           <Lightbulb className="w-12 h-12 lg:w-16 lg:h-16 text-primary-500 mx-auto mb-4" />
           <h2 className="text-2xl lg:text-3xl font-bold text-gray-900 mb-2">Inspiration</h2>

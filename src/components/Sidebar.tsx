@@ -18,9 +18,9 @@ const Sidebar = () => {
   ]
 
   return (
-    <aside className="w-full lg:w-64 bg-white shadow-sm border-r border-gray-200 min-h-screen lg:min-h-0">
-      <nav className="p-4 lg:p-6">
-        <ul className="flex lg:flex-col space-x-4 lg:space-x-0 lg:space-y-4">
+    <aside className="w-full lg:w-64 bg-white shadow-sm border-r border-gray-200 h-full">
+      <nav className="p-4 lg:p-6 h-full">
+        <ul className="flex lg:flex-col space-x-4 lg:space-x-0 lg:space-y-4 h-full lg:justify-start">
           {menuItems.map((item) => {
             const Icon = item.icon
             const isActive = location.pathname === item.path || 

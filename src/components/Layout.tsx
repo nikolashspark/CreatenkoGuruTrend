@@ -7,11 +7,11 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen bg-gray-50 flex flex-col">
       <Header />
-      <div className="flex flex-col lg:flex-row">
+      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 p-4 lg:p-8 max-w-full overflow-x-hidden">
+        <main className="flex-1 p-4 lg:p-8 max-w-full overflow-y-auto">
           {children}
         </main>
       </div>

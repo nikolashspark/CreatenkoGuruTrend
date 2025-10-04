@@ -35,8 +35,8 @@ const Generation = () => {
   }
 
   return (
-    <div className="w-full max-w-4xl mx-auto">
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 lg:p-8">
+    <div className="w-full max-w-4xl mx-auto h-full">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 lg:p-8 h-full overflow-y-auto">
         <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-6 lg:mb-8">Generation</h2>
         
         <div className="space-y-6">
