@@ -107,6 +107,80 @@ app.get('/api/apify/facebook-ads', (req, res) => {
   });
 });
 
+// GET endpoint для отримання збережених оголошень з Supabase
+app.get('/api/facebook-ads', async (req, res) => {
+  try {
+    const { page_id, limit = 50, offset = 0 } = req.query;
+    
+    console.log('=== FETCHING SAVED ADS FROM SUPABASE ===');
+    console.log('Query params:', { page_id, limit, offset });
+    
+    let query = supabase
+      .from('facebook_ads')
+      .select(`
+        *,
+        apify_requests (
+          id,
+          page_id,
+          country,
+          request_date
+        )
+      `)
+      .order('created_at', { ascending: false })
+      .range(parseInt(offset), parseInt(offset) + parseInt(limit) - 1);
+    
+    // Якщо вказано page_id, фільтруємо
+    if (page_id) {
+      query = query.eq('apify_requests.page_id', page_id);
+    }
+    
+    const { data: ads, error } = await query;
+    
+    if (error) {
+      console.error('❌ Supabase fetch error:', error);
+      return res.status(500).json({ 
+        error: 'Failed to fetch ads', 
+        details: error.message 
+      });
+    }
+    
+    console.log(`✅ Fetched ${ads?.length || 0} ads from Supabase`);
+    
+    // Трансформуємо дані у формат frontend
+    const transformedAds = ads.map(ad => ({
+      id: ad.id,
+      adArchiveId: ad.ad_archive_id,
+      text: ad.title || ad.caption || 'No text',
+      imageUrl: ad.media_type === 'image' ? ad.media_url : null,
+      videoUrl: ad.media_type === 'video' ? ad.media_url : null,
+      pageName: ad.page_name,
+      adType: ad.media_type?.toUpperCase() || 'IMAGE',
+      createdAt: ad.created_at,
+      ctaText: ad.cta_text,
+      linkUrl: ad.ad_link,
+      caption: ad.caption,
+      cardIndex: ad.card_index,
+      vertexAnalysis: ad.vertex_analysis,
+      vertexAnalyzedAt: ad.vertex_analyzed_at,
+      requestInfo: ad.apify_requests
+    }));
+    
+    res.json({
+      success: true,
+      ads: transformedAds,
+      total: transformedAds.length,
+      source: 'supabase'
+    });
+    
+  } catch (error) {
+    console.error('Fetch saved ads error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch saved ads',
+      details: error.message
+    });
+  }
+});
+
 // Facebook Ads Scraper endpoint через MCP
 app.post('/api/apify/facebook-ads', async (req, res) => {
   try {

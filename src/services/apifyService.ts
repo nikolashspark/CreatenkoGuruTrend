@@ -57,6 +57,51 @@ export const scrapeFacebookAds = async (
   }
 };
 
+// Функція для завантаження збережених оголошень з Supabase
+export const getSavedFacebookAds = async (
+  pageId?: string,
+  limit: number = 50,
+  offset: number = 0
+): Promise<FacebookAdData[]> => {
+  try {
+    console.log(`Fetching saved Facebook Ads from Supabase`, { pageId, limit, offset });
+
+    const params = new URLSearchParams({
+      limit: limit.toString(),
+      offset: offset.toString()
+    });
+
+    if (pageId) {
+      params.append('page_id', pageId);
+    }
+
+    const response = await fetch(`${RAILWAY_API_URL}/api/facebook-ads?${params.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Backend Error: ${errorData.error || response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.success || !data.ads) {
+      throw new Error('No ads found or invalid response');
+    }
+
+    console.log(`✅ Loaded ${data.ads.length} saved ads from Supabase`);
+    return data.ads;
+
+  } catch (error: any) {
+    console.error('Saved Facebook Ads Loading Error:', error);
+    throw new Error(`Failed to load saved ads: ${error.message}`);
+  }
+};
+
 // Функція для тестування Apify підключення через Railway backend
 export const testApifyConnection = async (): Promise<boolean> => {
   try {

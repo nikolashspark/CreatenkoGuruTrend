@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { generateWithClaude } from '../services/claudeApi';
-import { scrapeFacebookAds } from '../services/apifyService';
+import { scrapeFacebookAds, getSavedFacebookAds } from '../services/apifyService';
 import { analyzeVideoWithGemini } from '../services/geminiService';
 
 interface CompetitorAd {
@@ -23,6 +23,30 @@ const CompetitorAnalysis: React.FC = () => {
   const [count, setCount] = useState(10);
   const [useGemini, setUseGemini] = useState(false);
   const [videoAnalysis, setVideoAnalysis] = useState<Record<string, string>>({});
+  const [viewMode, setViewMode] = useState<'saved' | 'new'>('saved');
+
+  // Завантаження збережених оголошень при завантаженні сторінки
+  useEffect(() => {
+    loadSavedAds();
+  }, []);
+
+  const loadSavedAds = async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      console.log('📥 Loading saved ads from Supabase...');
+      const savedAds = await getSavedFacebookAds();
+      setAds(savedAds);
+      console.log(`✅ Loaded ${savedAds.length} saved ads`);
+      setViewMode('saved');
+    } catch (err: any) {
+      console.error('Failed to load saved ads:', err);
+      setError(`Не вдалося завантажити збережені оголошення: ${err.message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const analyzeCompetitors = async () => {
     setIsLoading(true);
@@ -122,6 +146,9 @@ const CompetitorAnalysis: React.FC = () => {
 
       const analysisResponse = await generateWithClaude(analysisPrompt);
       setAnalysis(analysisResponse);
+      
+      // Перемикаємо на режим "нові"
+      setViewMode('new');
 
     } catch (err: any) {
       setError(`Помилка при аналізі конкурентів: ${err.message}`);
@@ -142,7 +169,35 @@ const CompetitorAnalysis: React.FC = () => {
           </p>
         </div>
 
+        {/* Вкладки */}
+        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
+          <div className="flex gap-4">
+            <button
+              onClick={loadSavedAds}
+              disabled={isLoading}
+              className={`flex-1 py-3 px-6 rounded-lg font-semibold transition ${
+                viewMode === 'saved'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              } disabled:opacity-50`}
+            >
+              💾 Збережені оголошення ({ads.length > 0 && viewMode === 'saved' ? ads.length : '...'})
+            </button>
+            <button
+              onClick={() => setViewMode('new')}
+              className={`flex-1 py-3 px-6 rounded-lg font-semibold transition ${
+                viewMode === 'new'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              🆕 Новий пошук
+            </button>
+          </div>
+        </div>
+
         {/* Параметри аналізу */}
+        {viewMode === 'new' && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">Параметри аналізу</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -205,8 +260,10 @@ const CompetitorAnalysis: React.FC = () => {
             </label>
           </div>
         </div>
+        )}
 
         {/* Кнопка аналізу */}
+        {viewMode === 'new' && (
         <div className="text-center mb-8">
           <button
             onClick={analyzeCompetitors}
@@ -216,6 +273,7 @@ const CompetitorAnalysis: React.FC = () => {
             {isLoading ? '🔄 Аналізуємо...' : '🚀 Почати аналіз'}
           </button>
         </div>
+        )}
 
         {/* Помилка */}
         {error && (
@@ -227,7 +285,20 @@ const CompetitorAnalysis: React.FC = () => {
         {/* Результати аналізу */}
         {ads.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-xl font-semibold mb-4">Знайдені креативи ({ads.length})</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">
+                {viewMode === 'saved' ? '💾 Збережені креативи' : '🆕 Нові креативи'} ({ads.length})
+              </h2>
+              {viewMode === 'saved' && (
+                <button
+                  onClick={loadSavedAds}
+                  disabled={isLoading}
+                  className="bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white py-2 px-4 rounded text-sm"
+                >
+                  🔄 Оновити
+                </button>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {ads.map((ad, index) => (
                 <div key={ad.id || index} className="border border-gray-200 rounded-lg p-4">
