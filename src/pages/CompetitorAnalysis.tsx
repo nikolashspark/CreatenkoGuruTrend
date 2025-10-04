@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { generateWithClaude } from '../services/claudeApi';
-import { scrapeFacebookAds, getSavedFacebookAds } from '../services/apifyService';
+import { scrapeFacebookAds, getSavedFacebookAds, analyzeAdWithAI } from '../services/apifyService';
 import { analyzeVideoWithGemini } from '../services/geminiService';
 
 interface CompetitorAd {
@@ -24,6 +24,8 @@ const CompetitorAnalysis: React.FC = () => {
   const [useGemini, setUseGemini] = useState(false);
   const [videoAnalysis, setVideoAnalysis] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'saved' | 'new'>('saved');
+  const [analyzingAds, setAnalyzingAds] = useState<Record<string, boolean>>({});
+  const [aiAnalysis, setAiAnalysis] = useState<Record<string, string>>({});
 
   // Завантаження збережених оголошень при завантаженні сторінки
   useEffect(() => {
@@ -40,11 +42,46 @@ const CompetitorAnalysis: React.FC = () => {
       setAds(savedAds);
       console.log(`✅ Loaded ${savedAds.length} saved ads`);
       setViewMode('saved');
+      
+      // Завантажуємо вже існуючі аналізи
+      const existingAnalyses: Record<string, string> = {};
+      savedAds.forEach((ad: any) => {
+        if (ad.vertexAnalysis) {
+          existingAnalyses[ad.id] = ad.vertexAnalysis;
+        }
+      });
+      setAiAnalysis(existingAnalyses);
     } catch (err: any) {
       console.error('Failed to load saved ads:', err);
       setError(`Не вдалося завантажити збережені оголошення: ${err.message}`);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAnalyzeAd = async (adId: string, forceReanalyze: boolean = false) => {
+    setAnalyzingAds(prev => ({ ...prev, [adId]: true }));
+    setError(null);
+    
+    try {
+      console.log(`🤖 Analyzing ad ${adId}...`);
+      const result = await analyzeAdWithAI(adId, forceReanalyze);
+      
+      setAiAnalysis(prev => ({
+        ...prev,
+        [adId]: result.analysis
+      }));
+      
+      if (result.cached) {
+        console.log('✅ Loaded cached analysis');
+      } else {
+        console.log('✅ New analysis completed and saved');
+      }
+    } catch (err: any) {
+      console.error('Analysis error:', err);
+      setError(`Помилка аналізу: ${err.message}`);
+    } finally {
+      setAnalyzingAds(prev => ({ ...prev, [adId]: false }));
     }
   };
 
@@ -338,7 +375,42 @@ const CompetitorAnalysis: React.FC = () => {
                     </a>
                   )}
                   
-                  {/* Gemini аналіз відео */}
+                  {/* Кнопка аналізу через AI */}
+                  {viewMode === 'saved' && (ad.imageUrl || ad.videoUrl) && (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => handleAnalyzeAd(ad.id, !!aiAnalysis[ad.id])}
+                        disabled={analyzingAds[ad.id]}
+                        className={`w-full py-2 px-3 rounded text-sm font-medium transition ${
+                          aiAnalysis[ad.id]
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-300'
+                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        {analyzingAds[ad.id] ? (
+                          '⏳ Аналізуємо...'
+                        ) : aiAnalysis[ad.id] ? (
+                          '🔄 Оновити аналіз'
+                        ) : (
+                          `🤖 Аналізувати ${ad.adType === 'VIDEO' ? 'відео' : 'картинку'}`
+                        )}
+                      </button>
+                    </div>
+                  )}
+                  
+                  {/* AI аналіз результат */}
+                  {aiAnalysis[ad.id] && (
+                    <div className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-300 rounded-lg">
+                      <h4 className="text-xs font-bold text-purple-900 mb-2 flex items-center gap-1">
+                        🤖 AI Аналіз {ad.adType === 'VIDEO' ? '(Vertex AI)' : '(Claude Vision)'}
+                      </h4>
+                      <div className="text-xs text-gray-800 whitespace-pre-wrap max-h-64 overflow-y-auto">
+                        {aiAnalysis[ad.id]}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Gemini аналіз відео (старий для нових пошуків) */}
                   {videoAnalysis[ad.id] && (
                     <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded">
                       <h4 className="text-xs font-semibold text-purple-900 mb-2">🤖 Gemini Video Analysis:</h4>

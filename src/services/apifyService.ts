@@ -102,6 +102,46 @@ export const getSavedFacebookAds = async (
   }
 };
 
+// Функція для аналізу одного оголошення через Vertex AI / Claude Vision
+export const analyzeAdWithAI = async (
+  adId: string,
+  forceReanalyze: boolean = false
+): Promise<{ success: boolean; analysis: string; cached: boolean }> => {
+  try {
+    console.log(`🤖 Analyzing ad ${adId} with AI...`);
+
+    const response = await fetch(`${RAILWAY_API_URL}/api/facebook-ads/${adId}/analyze`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ forceReanalyze })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(`Backend Error: ${errorData.error || response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.success) {
+      throw new Error('Analysis failed');
+    }
+
+    console.log(`✅ Ad analyzed successfully (cached: ${data.cached})`);
+    return {
+      success: true,
+      analysis: data.analysis,
+      cached: data.cached
+    };
+
+  } catch (error: any) {
+    console.error('Ad analysis error:', error);
+    throw new Error(`Failed to analyze ad: ${error.message}`);
+  }
+};
+
 // Функція для тестування Apify підключення через Railway backend
 export const testApifyConnection = async (): Promise<boolean> => {
   try {

@@ -181,6 +181,302 @@ app.get('/api/facebook-ads', async (req, res) => {
   }
 });
 
+// POST endpoint для аналізу конкретного оголошення через Vertex AI
+app.post('/api/facebook-ads/:id/analyze', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { forceReanalyze = false } = req.body;
+    
+    console.log('=== ANALYZING AD WITH VERTEX AI ===');
+    console.log('Ad ID:', id);
+    console.log('Force reanalyze:', forceReanalyze);
+    
+    // Отримуємо оголошення з Supabase
+    const { data: ad, error: fetchError } = await supabase
+      .from('facebook_ads')
+      .select('*')
+      .eq('id', id)
+      .single();
+    
+    if (fetchError || !ad) {
+      return res.status(404).json({ 
+        error: 'Ad not found',
+        details: fetchError?.message 
+      });
+    }
+    
+    // Перевіряємо чи вже аналізували (якщо не force)
+    if (!forceReanalyze && ad.vertex_analysis) {
+      console.log('✅ Ad already analyzed, returning cached result');
+      return res.json({
+        success: true,
+        analysis: ad.vertex_analysis,
+        cached: true,
+        analyzedAt: ad.vertex_analyzed_at
+      });
+    }
+    
+    if (!ad.media_url) {
+      return res.status(400).json({ 
+        error: 'No media URL found for this ad' 
+      });
+    }
+    
+    console.log(`📹 Analyzing ${ad.media_type}: ${ad.media_url}`);
+    
+    let analysisResult;
+    
+    // Вибираємо метод аналізу залежно від типу медіа
+    if (ad.media_type === 'video') {
+      // Для відео використовуємо Vertex AI Gemini
+      if (!process.env.VERTEX_AI_CREDENTIALS) {
+        // Fallback на Gemini API якщо немає Vertex
+        if (!process.env.GEMINI_API_KEY) {
+          throw new Error('Neither VERTEX_AI_CREDENTIALS nor GEMINI_API_KEY configured');
+        }
+        
+        console.log('Using Gemini API for video analysis...');
+        analysisResult = await analyzeVideoWithGeminiAPI(ad.media_url);
+      } else {
+        console.log('Using Vertex AI for video analysis...');
+        analysisResult = await analyzeVideoWithVertexAI(ad.media_url);
+      }
+    } else {
+      // Для картинок використовуємо Claude Vision API
+      console.log('Using Claude Vision for image analysis...');
+      analysisResult = await analyzeImageWithClaude(ad.media_url, ad.title, ad.caption);
+    }
+    
+    console.log('✅ Analysis completed');
+    
+    // Зберігаємо результат в Supabase
+    const { error: updateError } = await supabase
+      .from('facebook_ads')
+      .update({
+        vertex_analysis: analysisResult,
+        vertex_analyzed_at: new Date().toISOString()
+      })
+      .eq('id', id);
+    
+    if (updateError) {
+      console.error('❌ Failed to save analysis:', updateError);
+      // Все одно повертаємо результат, навіть якщо не вдалося зберегти
+    } else {
+      console.log('💾 Analysis saved to Supabase');
+    }
+    
+    res.json({
+      success: true,
+      analysis: analysisResult,
+      cached: false,
+      analyzedAt: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Ad analysis error:', error);
+    res.status(500).json({
+      error: 'Failed to analyze ad',
+      details: error.message
+    });
+  }
+});
+
+// Helper: аналіз відео через Vertex AI
+async function analyzeVideoWithVertexAI(videoUrl) {
+  const credentials = JSON.parse(process.env.VERTEX_AI_CREDENTIALS);
+  const projectId = process.env.VERTEX_AI_PROJECT_ID || credentials.project_id;
+  const location = process.env.VERTEX_AI_LOCATION || 'us-central1';
+  
+  // Отримуємо OAuth2 токен
+  const jwtToken = await createJWT(credentials);
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwtToken}`
+  });
+  
+  const tokenData = await tokenResponse.json();
+  const accessToken = tokenData.access_token;
+  
+  // Завантажуємо відео
+  const videoResponse = await fetch(videoUrl);
+  if (!videoResponse.ok) throw new Error('Failed to download video');
+  
+  const videoBuffer = await videoResponse.arrayBuffer();
+  
+  // Завантажуємо в Vertex AI File API
+  const uploadUrl = `https://${location}-aiplatform.googleapis.com/upload/v1/projects/${projectId}/locations/${location}/files`;
+  
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'X-Goog-Upload-Protocol': 'resumable',
+      'X-Goog-Upload-Command': 'start, upload, finalize',
+      'X-Goog-Upload-Header-Content-Length': videoBuffer.byteLength.toString(),
+      'X-Goog-Upload-Header-Content-Type': 'video/mp4',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ file: { display_name: 'facebook_ad_video.mp4' } })
+  });
+  
+  const uploadSessionUrl = uploadResponse.headers.get('x-goog-upload-url');
+  
+  const fileUploadResponse = await fetch(uploadSessionUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Length': videoBuffer.byteLength.toString(),
+      'X-Goog-Upload-Offset': '0',
+      'X-Goog-Upload-Command': 'upload, finalize'
+    },
+    body: videoBuffer
+  });
+  
+  const fileData = await fileUploadResponse.json();
+  const fileUri = fileData.file.uri;
+  
+  // Аналізуємо через Gemini
+  const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-exp:generateContent`;
+  
+  const requestBody = {
+    contents: [{
+      role: 'user',
+      parts: [
+        { fileData: { mimeType: 'video/mp4', fileUri } },
+        { text: "Проаналізуй цей рекламний відео креатив детально:\n- Стиль та візуальні ефекти\n- Динаміка та монтаж\n- Текст на відео\n- Емоції та настрій\n- Call-to-action (CTA)\n- Цільова аудиторія\n- Що працює добре\n- Рекомендації для покращення" }
+      ]
+    }]
+  };
+  
+  const analysisResponse = await fetch(vertexUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  });
+  
+  const data = await analysisResponse.json();
+  return data.candidates[0].content.parts[0].text;
+}
+
+// Helper: аналіз відео через Gemini API (fallback)
+async function analyzeVideoWithGeminiAPI(videoUrl) {
+  // Завантажуємо відео
+  const videoResponse = await fetch(videoUrl);
+  const videoBuffer = await videoResponse.arrayBuffer();
+  
+  // Завантажуємо в Gemini File API
+  const uploadUrl = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${process.env.GEMINI_API_KEY}`;
+  
+  const uploadResponse = await fetch(uploadUrl, {
+    method: 'POST',
+    headers: {
+      'X-Goog-Upload-Protocol': 'resumable',
+      'X-Goog-Upload-Command': 'start, upload, finalize',
+      'X-Goog-Upload-Header-Content-Length': videoBuffer.byteLength.toString(),
+      'X-Goog-Upload-Header-Content-Type': 'video/mp4',
+      'Content-Type': 'video/mp4'
+    },
+    body: videoBuffer
+  });
+  
+  const uploadData = await uploadResponse.json();
+  const fileUri = uploadData.file.uri;
+  
+  // Чекаємо обробки
+  let fileState = 'PROCESSING';
+  let attempts = 0;
+  while (fileState === 'PROCESSING' && attempts < 30) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const statusResponse = await fetch(`${uploadData.file.name}?key=${process.env.GEMINI_API_KEY}`);
+    const statusData = await statusResponse.json();
+    fileState = statusData.state;
+    attempts++;
+  }
+  
+  if (fileState !== 'ACTIVE') throw new Error('Video processing failed');
+  
+  // Аналізуємо
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${process.env.GEMINI_API_KEY}`;
+  
+  const requestBody = {
+    contents: [{
+      parts: [
+        { fileData: { mimeType: "video/mp4", fileUri } },
+        { text: "Проаналізуй цей рекламний відео креатив детально:\n- Стиль та візуальні ефекти\n- Динаміка та монтаж\n- Текст на відео\n- Емоції та настрій\n- Call-to-action (CTA)\n- Цільова аудиторія\n- Що працює добре\n- Рекомендації для покращення" }
+      ]
+    }]
+  };
+  
+  const analysisResponse = await fetch(geminiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody)
+  });
+  
+  const data = await analysisResponse.json();
+  return data.candidates[0].content.parts[0].text;
+}
+
+// Helper: аналіз картинки через Claude Vision
+async function analyzeImageWithClaude(imageUrl, title, caption) {
+  // Завантажуємо картинку та конвертуємо в base64
+  const imageResponse = await fetch(imageUrl);
+  const imageBuffer = await imageResponse.arrayBuffer();
+  const base64Image = Buffer.from(imageBuffer).toString('base64');
+  
+  // Визначаємо media type
+  const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+  
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 2048,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: contentType,
+              data: base64Image
+            }
+          },
+          {
+            type: 'text',
+            text: `Проаналізуй цей рекламний креатив детально:
+
+Заголовок: ${title || 'N/A'}
+Опис: ${caption || 'N/A'}
+
+Надай аналіз:
+- Візуальна композиція та дизайн
+- Кольорова схема
+- Текст та типографіка
+- Емоційний вплив
+- Call-to-action (CTA)
+- Цільова аудиторія
+- Що працює добре
+- Рекомендації для покращення`
+          }
+        ]
+      }]
+    })
+  });
+  
+  const data = await response.json();
+  return data.content[0].text;
+}
+
 // Facebook Ads Scraper endpoint через MCP
 app.post('/api/apify/facebook-ads', async (req, res) => {
   try {
