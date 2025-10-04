@@ -36,14 +36,28 @@ const CompetitorAnalysis: React.FC = () => {
       const scrapedAds = await scrapeFacebookAds(pageId, country, count);
       setAds(scrapedAds);
 
+      console.log('📊 Scraped ads:', scrapedAds.length);
+      console.log('📊 Ads with video:', scrapedAds.filter(ad => ad.videoUrl).length);
+      console.log('📊 Sample ad:', scrapedAds[0]);
+
       // Якщо увімкнено Gemini - спочатку аналізуємо відео
       let geminiVideoInsights: Record<string, string> = {};
       
+      console.log('🔍 Checking useGemini state:', useGemini);
+      
       if (useGemini) {
-        console.log('🎥 Starting Vertex AI video analysis...');
-        console.log('useGemini checkbox is:', useGemini);
+        console.log('✅ Vertex AI video analysis is ENABLED');
         const videoAds = scrapedAds.filter(ad => ad.videoUrl);
-        console.log(`Found ${videoAds.length} video ads to analyze`);
+        console.log(`📹 Found ${videoAds.length} video ads to analyze`);
+        
+        if (videoAds.length === 0) {
+          console.warn('⚠️ No video ads found! All ads:', scrapedAds.map(ad => ({
+            id: ad.id,
+            type: ad.adType,
+            hasVideo: !!ad.videoUrl,
+            hasImage: !!ad.imageUrl
+          })));
+        }
         
         for (const ad of videoAds) {
           try {
