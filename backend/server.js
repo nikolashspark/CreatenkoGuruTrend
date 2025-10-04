@@ -356,26 +356,58 @@ app.post('/api/vertex/analyze-video', async (req, res) => {
 
     console.log('Step 3: Uploading video to Vertex AI File API...');
 
-    // Завантажуємо відео через File API
+    // Завантажуємо відео через File API (resumable upload)
     const uploadUrl = `https://${location}-aiplatform.googleapis.com/upload/v1/projects/${projectId}/locations/${location}/files`;
     
     const uploadResponse = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'video/mp4'
+        'X-Goog-Upload-Protocol': 'resumable',
+        'X-Goog-Upload-Command': 'start, upload, finalize',
+        'X-Goog-Upload-Header-Content-Length': videoBuffer.byteLength.toString(),
+        'X-Goog-Upload-Header-Content-Type': 'video/mp4',
+        'Content-Type': 'application/json'
       },
-      body: videoBuffer
+      body: JSON.stringify({
+        file: {
+          display_name: 'facebook_ad_video.mp4'
+        }
+      })
     });
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
-      console.error('File upload error:', errorText);
-      throw new Error(`Failed to upload video: ${uploadResponse.statusText}`);
+      console.error('File upload metadata error:', errorText);
+      throw new Error(`Failed to start upload: ${uploadResponse.statusText}`);
     }
 
     const uploadData = await uploadResponse.json();
-    const fileUri = uploadData.uri;
+    
+    // Тепер завантажуємо сам файл
+    const uploadSessionUrl = uploadResponse.headers.get('x-goog-upload-url');
+    if (!uploadSessionUrl) {
+      throw new Error('No upload session URL received');
+    }
+
+    const fileUploadResponse = await fetch(uploadSessionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Length': videoBuffer.byteLength.toString(),
+        'X-Goog-Upload-Offset': '0',
+        'X-Goog-Upload-Command': 'upload, finalize'
+      },
+      body: videoBuffer
+    });
+
+    if (!fileUploadResponse.ok) {
+      const errorText = await fileUploadResponse.text();
+      console.error('File upload error:', errorText);
+      throw new Error(`Failed to upload video: ${fileUploadResponse.statusText}`);
+    }
+
+    const fileData = await fileUploadResponse.json();
+    const fileUri = fileData.file.uri;
     console.log('Video uploaded, URI:', fileUri);
 
     console.log('Step 4: Analyzing video with Vertex AI Gemini...');
