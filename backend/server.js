@@ -198,6 +198,15 @@ app.post('/api/facebook-ads/:id/analyze', async (req, res) => {
       .eq('id', id)
       .single();
     
+    console.log('📊 Fetched ad from Supabase:', {
+      found: !!ad,
+      error: fetchError?.message,
+      ad_id: ad?.id,
+      media_url: ad?.media_url,
+      media_type: ad?.media_type,
+      title: ad?.title
+    });
+    
     if (fetchError || !ad) {
       return res.status(404).json({ 
         error: 'Ad not found',
@@ -216,9 +225,18 @@ app.post('/api/facebook-ads/:id/analyze', async (req, res) => {
       });
     }
     
-    if (!ad.media_url) {
+    // Детальна перевірка media_url
+    if (!ad.media_url || ad.media_url === 'null' || ad.media_url === null) {
+      console.error('❌ Invalid media_url:', ad.media_url);
       return res.status(400).json({ 
-        error: 'No media URL found for this ad' 
+        error: 'No valid media URL found for this ad',
+        details: `media_url is: ${ad.media_url}`,
+        ad_data: {
+          id: ad.id,
+          media_url: ad.media_url,
+          media_type: ad.media_type,
+          title: ad.title
+        }
       });
     }
     

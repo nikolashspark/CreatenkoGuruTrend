@@ -375,8 +375,8 @@ const CompetitorAnalysis: React.FC = () => {
                     </a>
                   )}
                   
-                  {/* Кнопка аналізу через AI */}
-                  {viewMode === 'saved' && (ad.imageUrl || ad.videoUrl) && (
+                  {/* Кнопка аналізу через AI - тільки якщо є медіа */}
+                  {viewMode === 'saved' && (ad.imageUrl || ad.videoUrl) && (ad.imageUrl !== null || ad.videoUrl !== null) && (
                     <div className="mt-3">
                       <button
                         onClick={() => handleAnalyzeAd(ad.id, !!aiAnalysis[ad.id])}
