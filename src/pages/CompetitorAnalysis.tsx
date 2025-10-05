@@ -97,7 +97,7 @@ const CompetitorAnalysis: React.FC = () => {
       const scrapeResult = await scrapeFacebookAds(pageId, country, count);
       
       // Перевіряємо чи є нові креативи
-      if (scrapeResult.savedCount === 0 && scrapeResult.duplicatesCount > 0) {
+      if (scrapeResult.savedCount === 0 && (scrapeResult.duplicatesCount || 0) > 0) {
         setError(`⚠️ ${scrapeResult.message || 'Всі знайдені креативи вже є в базі даних. Спробуйте іншу сторінку або збільште кількість.'}`);
         setIsLoading(false);
         return;
