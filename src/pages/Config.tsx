@@ -136,24 +136,6 @@ const Config: React.FC = () => {
           </div>
         )}
 
-        {/* SQL Instructions */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 mb-6">
-          <h3 className="text-lg font-semibold text-blue-900 mb-2">📝 Як додати промпти в базу даних?</h3>
-          <p className="text-sm text-blue-800 mb-3">
-            Виконайте SQL файл <code className="bg-blue-100 px-2 py-1 rounded">database/system_prompts.sql</code> в Supabase SQL Editor
-          </p>
-          <div className="text-xs text-blue-700">
-            <strong>Кроки:</strong>
-            <ol className="list-decimal list-inside space-y-1 mt-2">
-              <li>Відкрийте Supabase Dashboard → SQL Editor</li>
-              <li>Створіть новий Query</li>
-              <li>Скопіюйте вміст файлу system_prompts.sql</li>
-              <li>Виконайте (Run)</li>
-              <li>Оновіть цю сторінку</li>
-            </ol>
-          </div>
-        </div>
-
         {/* Prompts by Category */}
         {Object.keys(groupedPrompts).length === 0 ? (
           <div className="bg-white rounded-lg shadow-md p-8 text-center">
