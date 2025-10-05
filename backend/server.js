@@ -853,7 +853,7 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
           ad_link: card.link_url || null,
           caption: card.caption || snapshot.caption || null,
           cta_text: card.cta_text || snapshot.cta_text || null,
-          page_name: snapshot.page_name || pageId,
+          page_name: pageId, // Зберігаємо ID сторінки з інпуту
           card_index: index
         };
         

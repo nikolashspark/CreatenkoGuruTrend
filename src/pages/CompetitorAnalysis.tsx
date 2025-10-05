@@ -22,7 +22,6 @@ const CompetitorAnalysis: React.FC = () => {
   const [country, setCountry] = useState('US');
   const [count, setCount] = useState(10);
   const [useGemini, setUseGemini] = useState(false);
-  const [videoAnalysis, setVideoAnalysis] = useState<Record<string, string>>({});
   const [viewMode, setViewMode] = useState<'saved' | 'new'>('saved');
   const [analyzingAds, setAnalyzingAds] = useState<Record<string, boolean>>({});
   const [aiAnalysis, setAiAnalysis] = useState<Record<string, string>>({});
@@ -140,7 +139,7 @@ const CompetitorAnalysis: React.FC = () => {
             const result = await analyzeAdWithAI(ad.id, false);
             
             geminiVideoInsights[ad.id] = result.analysis;
-            setVideoAnalysis(prev => ({
+            setAiAnalysis(prev => ({
               ...prev,
               [ad.id]: result.analysis
             }));
@@ -183,7 +182,7 @@ const CompetitorAnalysis: React.FC = () => {
             
             geminiVideoInsights[ad.id] = videoAnalysisResult;
             
-            setVideoAnalysis(prev => ({
+            setAiAnalysis(prev => ({
               ...prev,
               [ad.id]: videoAnalysisResult
             }));
@@ -470,14 +469,6 @@ const CompetitorAnalysis: React.FC = () => {
                       <div className="text-xs text-gray-800 whitespace-pre-wrap max-h-64 overflow-y-auto">
                         {aiAnalysis[ad.id]}
                       </div>
-                    </div>
-                  )}
-                  
-                  {/* Gemini аналіз відео (старий для нових пошуків) */}
-                  {videoAnalysis[ad.id] && (
-                    <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded">
-                      <h4 className="text-xs font-semibold text-purple-900 mb-2">🤖 Gemini Video Analysis:</h4>
-                      <p className="text-xs text-purple-800 whitespace-pre-wrap">{videoAnalysis[ad.id]}</p>
                     </div>
                   )}
                 </div>
