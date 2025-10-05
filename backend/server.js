@@ -244,35 +244,19 @@ app.post('/api/facebook-ads/:id/analyze', async (req, res) => {
     
     let analysisResult;
     
-    // Вибираємо метод аналізу в залежності від наявних ключів
-    if (ad.media_type === 'video') {
-      // Для відео потрібен Gemini (Vertex AI або Gemini API)
-      if (!process.env.GEMINI_API_KEY && !process.env.VERTEX_AI_CREDENTIALS) {
-        throw new Error('Video analysis requires GEMINI_API_KEY or VERTEX_AI_CREDENTIALS. Please configure one of them.');
-      }
-      
-      console.log('🎥 Analyzing video...');
-      if (process.env.VERTEX_AI_CREDENTIALS) {
-        console.log('Using Vertex AI Gemini for video...');
-        analysisResult = await analyzeMediaWithVertexAI(ad.media_url, ad.media_type, ad.title, ad.caption);
-      } else {
-        console.log('Using Gemini API for video...');
-        analysisResult = await analyzeMediaWithGeminiAPI(ad.media_url, ad.media_type, ad.title, ad.caption);
-      }
+    // Використовуємо Vertex AI Gemini для ВСЬОГО (відео І картинки)
+    if (process.env.VERTEX_AI_CREDENTIALS) {
+      const mediaTypeLabel = ad.media_type === 'video' ? '🎥 відео' : '🖼️ картинку';
+      console.log(`Analyzing ${mediaTypeLabel} with Vertex AI Gemini 2.0 Flash...`);
+      analysisResult = await analyzeMediaWithVertexAI(ad.media_url, ad.media_type, ad.title, ad.caption);
+    } else if (process.env.GEMINI_API_KEY) {
+      console.log(`Analyzing ${ad.media_type} with Gemini API (fallback)...`);
+      analysisResult = await analyzeMediaWithGeminiAPI(ad.media_url, ad.media_type, ad.title, ad.caption);
+    } else if (ad.media_type === 'image' && process.env.CLAUDE_API_KEY) {
+      console.log('Analyzing image with Claude Vision (fallback)...');
+      analysisResult = await analyzeImageWithClaude(ad.media_url, ad.title, ad.caption);
     } else {
-      // Для картинок можемо використати Claude Vision
-      if (process.env.VERTEX_AI_CREDENTIALS) {
-        console.log('🖼️ Analyzing image with Vertex AI Gemini...');
-        analysisResult = await analyzeMediaWithVertexAI(ad.media_url, ad.media_type, ad.title, ad.caption);
-      } else if (process.env.GEMINI_API_KEY) {
-        console.log('🖼️ Analyzing image with Gemini API...');
-        analysisResult = await analyzeMediaWithGeminiAPI(ad.media_url, ad.media_type, ad.title, ad.caption);
-      } else if (process.env.CLAUDE_API_KEY) {
-        console.log('🖼️ Analyzing image with Claude Vision...');
-        analysisResult = await analyzeImageWithClaude(ad.media_url, ad.title, ad.caption);
-      } else {
-        throw new Error('Image analysis requires VERTEX_AI_CREDENTIALS, GEMINI_API_KEY, or CLAUDE_API_KEY');
-      }
+      throw new Error('Analysis requires VERTEX_AI_CREDENTIALS, GEMINI_API_KEY, or CLAUDE_API_KEY');
     }
     
     console.log('✅ Analysis completed');
@@ -309,13 +293,24 @@ app.post('/api/facebook-ads/:id/analyze', async (req, res) => {
   }
 });
 
-// Helper: аналіз медіа (відео або картинки) через Vertex AI
+// Helper: аналіз медіа (відео або картинки) через Vertex AI з Cloud Storage
 async function analyzeMediaWithVertexAI(mediaUrl, mediaType, title, caption) {
+  const { Storage } = require('@google-cloud/storage');
   const credentials = JSON.parse(process.env.VERTEX_AI_CREDENTIALS);
   const projectId = process.env.VERTEX_AI_PROJECT_ID || credentials.project_id;
   const location = process.env.VERTEX_AI_LOCATION || 'us-central1';
+  const bucketName = process.env.GCS_BUCKET_NAME || `${projectId}-vertex-temp`;
   
-  // Отримуємо OAuth2 токен
+  console.log(`Using Vertex AI project: ${projectId}, location: ${location}`);
+  
+  // Ініціалізуємо Cloud Storage
+  const storage = new Storage({
+    projectId: projectId,
+    credentials: credentials
+  });
+  
+  // Отримуємо OAuth2 токен для Vertex AI
+  console.log('Step 1: Getting OAuth2 token...');
   const jwtToken = await createJWT(credentials);
   const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -323,63 +318,55 @@ async function analyzeMediaWithVertexAI(mediaUrl, mediaType, title, caption) {
     body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwtToken}`
   });
   
+  if (!tokenResponse.ok) {
+    const errorText = await tokenResponse.text();
+    throw new Error(`Failed to get OAuth2 token: ${errorText}`);
+  }
+  
   const tokenData = await tokenResponse.json();
   const accessToken = tokenData.access_token;
+  console.log('✅ OAuth2 token obtained');
   
   // Завантажуємо медіа файл
+  console.log(`Step 2: Downloading ${mediaType} from Facebook...`);
   const mediaResponse = await fetch(mediaUrl);
   if (!mediaResponse.ok) throw new Error(`Failed to download ${mediaType}`);
   
   const mediaBuffer = await mediaResponse.arrayBuffer();
   const mimeType = mediaType === 'video' ? 'video/mp4' : 'image/jpeg';
-  const displayName = mediaType === 'video' ? 'facebook_ad_video.mp4' : 'facebook_ad_image.jpg';
+  const fileExtension = mediaType === 'video' ? 'mp4' : 'jpg';
   
-  // Завантажуємо в Vertex AI File API
-  const uploadUrl = `https://${location}-aiplatform.googleapis.com/upload/v1/projects/${projectId}/locations/${location}/files`;
+  console.log(`✅ Downloaded ${(mediaBuffer.byteLength / 1024).toFixed(2)} KB`);
   
-  console.log('Step 1: Starting resumable upload...');
-  const uploadResponse = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'X-Goog-Upload-Protocol': 'resumable',
-      'X-Goog-Upload-Command': 'start, upload, finalize',
-      'X-Goog-Upload-Header-Content-Length': mediaBuffer.byteLength.toString(),
-      'X-Goog-Upload-Header-Content-Type': mimeType,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ file: { display_name: displayName } })
-  });
+  // Завантажуємо в Google Cloud Storage
+  console.log('Step 3: Uploading to Google Cloud Storage...');
+  const fileName = `temp/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
   
-  console.log('Upload response status:', uploadResponse.status);
-  
-  if (!uploadResponse.ok) {
-    const errorText = await uploadResponse.text();
-    console.error('Upload initiation error:', errorText);
-    throw new Error(`Failed to start upload: ${uploadResponse.statusText} - ${errorText}`);
-  }
-  
-  const uploadSessionUrl = uploadResponse.headers.get('x-goog-upload-url');
-  console.log('Upload session URL:', uploadSessionUrl);
-  
-  if (!uploadSessionUrl) {
-    console.error('No upload session URL in headers:', Array.from(uploadResponse.headers.entries()));
-    throw new Error('No upload session URL received from Vertex AI');
-  }
-  
-  console.log('Step 2: Uploading file content...');
-  const fileUploadResponse = await fetch(uploadSessionUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Length': mediaBuffer.byteLength.toString(),
-      'X-Goog-Upload-Offset': '0',
-      'X-Goog-Upload-Command': 'upload, finalize'
-    },
-    body: mediaBuffer
-  });
-  
-  const fileData = await fileUploadResponse.json();
-  const fileUri = fileData.file.uri;
+  try {
+    // Створюємо bucket якщо не існує
+    const [buckets] = await storage.getBuckets();
+    const bucketExists = buckets.some(b => b.name === bucketName);
+    
+    if (!bucketExists) {
+      console.log(`Creating bucket: ${bucketName}`);
+      await storage.createBucket(bucketName, {
+        location: location.toUpperCase(),
+        storageClass: 'STANDARD'
+      });
+    }
+    
+    const bucket = storage.bucket(bucketName);
+    const file = bucket.file(fileName);
+    
+    await file.save(Buffer.from(mediaBuffer), {
+      contentType: mimeType,
+      metadata: {
+        cacheControl: 'public, max-age=3600',
+      }
+    });
+    
+    const gcsUri = `gs://${bucketName}/${fileName}`;
+    console.log(`✅ Uploaded to: ${gcsUri}`);
   
   // Формуємо prompt залежно від типу медіа
   let analysisPrompt;
@@ -410,30 +397,63 @@ async function analyzeMediaWithVertexAI(mediaUrl, mediaType, title, caption) {
 - Рекомендації для покращення`;
   }
   
-  // Аналізуємо через Gemini
-  const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-exp:generateContent`;
-  
-  const requestBody = {
-    contents: [{
-      role: 'user',
-      parts: [
-        { fileData: { mimeType, fileUri } },
-        { text: analysisPrompt }
-      ]
-    }]
-  };
-  
-  const analysisResponse = await fetch(vertexUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${accessToken}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify(requestBody)
-  });
-  
-  const data = await analysisResponse.json();
-  return data.candidates[0].content.parts[0].text;
+    // Аналізуємо через Gemini з Cloud Storage URI
+    console.log('Step 4: Analyzing with Gemini 2.0 Flash...');
+    const vertexUrl = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.0-flash-exp:generateContent`;
+    
+    const requestBody = {
+      contents: [{
+        role: 'user',
+        parts: [
+          {
+            fileData: {
+              fileUri: gcsUri,
+              mimeType: mimeType
+            }
+          },
+          { text: analysisPrompt }
+        ]
+      }]
+    };
+    
+    const analysisResponse = await fetch(vertexUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(requestBody)
+    });
+    
+    console.log('Analysis response status:', analysisResponse.status);
+    
+    if (!analysisResponse.ok) {
+      const errorText = await analysisResponse.text();
+      console.error('Vertex AI analysis error:', errorText);
+      throw new Error(`Vertex AI analysis failed: ${analysisResponse.statusText}`);
+    }
+    
+    const data = await analysisResponse.json();
+    console.log('✅ Analysis completed successfully');
+    
+    // Видаляємо тимчасовий файл з GCS
+    try {
+      await file.delete();
+      console.log('✅ Temporary file deleted from GCS');
+    } catch (deleteError) {
+      console.warn('Warning: Could not delete temporary file:', deleteError.message);
+    }
+    
+    if (!data.candidates || !data.candidates[0]) {
+      throw new Error('Invalid Vertex AI response - no candidates');
+    }
+    
+    return data.candidates[0].content.parts[0].text;
+    
+  } catch (gcsError) {
+    console.error('Cloud Storage error:', gcsError);
+    throw new Error(`Cloud Storage upload failed: ${gcsError.message}`);
+  }
 }
 
 // Helper: аналіз медіа (відео або картинки) через Gemini API (fallback)
