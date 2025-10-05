@@ -377,7 +377,7 @@ async function analyzeMediaWithVertexAI(mediaUrl, mediaType, title, caption) {
         throw uploadError;
       }
     }
-    
+     
     const gcsUri = `gs://${bucketName}/${fileName}`;
     console.log(`✅ Uploaded to: ${gcsUri}`);
   
