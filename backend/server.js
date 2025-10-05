@@ -347,19 +347,23 @@ async function analyzeMediaWithVertexAI(mediaUrl, mediaType, title, caption) {
     const file = bucket.file(fileName);
     
     // Спробуємо завантажити файл напряму
-    await file.save(Buffer.from(mediaBuffer), {
-      contentType: mimeType,
-      metadata: {
-        cacheControl: 'public, max-age=3600',
-      }
-    }).catch(async (uploadError) => {
+    try {
+      await file.save(Buffer.from(mediaBuffer), {
+        contentType: mimeType,
+        metadata: {
+          cacheControl: 'public, max-age=3600',
+        }
+      });
+    } catch (uploadError) {
       // Якщо bucket не існує (404), створюємо його
-      if (uploadError.code === 404) {
+      if (uploadError.status === 404 || uploadError.code === 404) {
         console.log(`Bucket not found, creating: ${bucketName}`);
         await storage.createBucket(bucketName, {
           location: location.toUpperCase(),
           storageClass: 'STANDARD'
         });
+        console.log(`✅ Bucket created: ${bucketName}`);
+        
         // Повторюємо завантаження
         await file.save(Buffer.from(mediaBuffer), {
           contentType: mimeType,
@@ -370,7 +374,7 @@ async function analyzeMediaWithVertexAI(mediaUrl, mediaType, title, caption) {
       } else {
         throw uploadError;
       }
-    });
+    }
     
     const gcsUri = `gs://${bucketName}/${fileName}`;
     console.log(`✅ Uploaded to: ${gcsUri}`);
