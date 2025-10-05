@@ -1298,6 +1298,74 @@ app.post('/api/gemini/analyze-video', async (req, res) => {
   }
 });
 
+// GET endpoint для отримання всіх системних промптів
+app.get('/api/system-prompts', async (req, res) => {
+  try {
+    const { data: prompts, error } = await supabase
+      .from('system_prompts')
+      .select('*')
+      .order('category', { ascending: true })
+      .order('name', { ascending: true });
+    
+    if (error) {
+      throw new Error(`Failed to fetch prompts: ${error.message}`);
+    }
+    
+    res.json({
+      success: true,
+      prompts: prompts || []
+    });
+    
+  } catch (error) {
+    console.error('Fetch system prompts error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch system prompts',
+      details: error.message
+    });
+  }
+});
+
+// PUT endpoint для оновлення системного промпту
+app.put('/api/system-prompts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { prompt, name, description, is_active } = req.body;
+    
+    console.log(`Updating system prompt ${id}...`);
+    
+    const updateData = {};
+    if (prompt !== undefined) updateData.prompt = prompt;
+    if (name !== undefined) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (is_active !== undefined) updateData.is_active = is_active;
+    
+    const { data, error } = await supabase
+      .from('system_prompts')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      throw new Error(`Failed to update prompt: ${error.message}`);
+    }
+    
+    console.log(`✅ Prompt ${id} updated successfully`);
+    
+    res.json({
+      success: true,
+      prompt: data
+    });
+    
+  } catch (error) {
+    console.error('Update system prompt error:', error);
+    res.status(500).json({
+      error: 'Failed to update system prompt',
+      details: error.message
+    });
+  }
+});
+
 // POST endpoint для Prompt Wizard - аналіз трендів та генерація Kling промптів
 app.post('/api/prompt-wizard/generate', async (req, res) => {
   try {
@@ -1343,10 +1411,32 @@ ${ad.vertex_analysis}
     
     console.log('📝 Collected analyses, total length:', allAnalyses.length);
     
-    // Крок 3: Відправити до Claude для аналізу трендів
+    // Крок 3: Отримати промпти з БД
+    const { data: systemPrompts, error: promptsError } = await supabase
+      .from('system_prompts')
+      .select('key, prompt')
+      .eq('is_active', true)
+      .in('key', ['TREND_ANALYSIS_PROMPT', 'KLING_OPTIMIZER_PROMPT']);
+    
+    if (promptsError) {
+      console.warn('Failed to load prompts from DB, using fallback:', promptsError.message);
+    }
+    
+    const promptsMap = {};
+    if (systemPrompts && systemPrompts.length > 0) {
+      systemPrompts.forEach(p => {
+        promptsMap[p.key] = p.prompt;
+      });
+    }
+    
+    // Використовуємо промпти з БД або fallback з конфігу
+    const trendAnalysisPromptText = promptsMap.TREND_ANALYSIS_PROMPT || PROMPTS.TREND_ANALYSIS_PROMPT;
+    const klingOptimizerPromptText = promptsMap.KLING_OPTIMIZER_PROMPT || PROMPTS.KLING_OPTIMIZER_PROMPT;
+    
+    // Крок 4: Відправити до Claude для аналізу трендів
     console.log('🔄 Sending to Claude for trend analysis...');
     
-    const trendAnalysisPrompt = `${PROMPTS.TREND_ANALYSIS_PROMPT}
+    const trendAnalysisPrompt = `${trendAnalysisPromptText}
 
 ===== АНАЛІЗИ КРЕАТИВІВ КОНКУРЕНТІВ =====
 
@@ -1383,10 +1473,10 @@ ${allAnalyses}
     
     console.log('✅ Trend analysis completed');
     
-    // Крок 4: Згенерувати Kling промпти на основі трендів та ідеї користувача
+    // Крок 5: Згенерувати Kling промпти на основі трендів та ідеї користувача
     console.log('🔄 Generating Kling prompts...');
     
-    const klingPrompt = `${PROMPTS.KLING_OPTIMIZER_PROMPT}
+    const klingPrompt = `${klingOptimizerPromptText}
 
 ===== АНАЛІЗ ТРЕНДІВ =====
 
