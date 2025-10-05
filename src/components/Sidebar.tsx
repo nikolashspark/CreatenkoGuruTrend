@@ -16,7 +16,7 @@ const Sidebar = () => {
       icon: Lightbulb,
     },
     {
-      name: 'Аналіз конкурентів',
+      name: 'Аналіз Page ID',
       path: '/competitors',
       icon: Search,
     },

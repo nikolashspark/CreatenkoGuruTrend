@@ -15,7 +15,10 @@ interface PromptResult {
   mode?: string;
 }
 
+type ModeType = 'user_idea' | 'all_trends' | 'fixed_page';
+
 const PromptWizard: React.FC = () => {
+  const [mode, setMode] = useState<ModeType>('all_trends');
   const [pageId, setPageId] = useState('');
   const [userIdea, setUserIdea] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -23,22 +26,44 @@ const PromptWizard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const generatePrompts = async () => {
+    // Validation based on mode
+    if (mode === 'user_idea' && !userIdea.trim()) {
+      setError('Введіть вашу ідею креативу');
+      return;
+    }
+    
+    if (mode === 'fixed_page' && !pageId.trim()) {
+      setError('Введіть Page ID');
+      return;
+    }
+    
     setIsLoading(true);
     setError(null);
     setResult(null);
 
     try {
-      console.log('🪄 Generating Kling prompts for page:', pageId || 'ALL');
+      console.log(`🪄 Generating Kling prompts in mode: ${mode}`);
+      console.log('Page ID:', mode === 'fixed_page' ? pageId : mode === 'all_trends' ? 'ALL' : 'N/A');
+      console.log('Has user idea:', !!userIdea);
+
+      const requestBody: { pageId?: string; userIdea?: string } = {};
+      
+      if (mode === 'fixed_page') {
+        requestBody.pageId = pageId;
+      }
+      // mode === 'all_trends': no pageId
+      // mode === 'user_idea': no pageId
+      
+      if (userIdea.trim()) {
+        requestBody.userIdea = userIdea;
+      }
 
       const response = await fetch(`${RAILWAY_API_URL}/api/prompt-wizard/generate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          pageId: pageId || undefined,
-          userIdea: userIdea || undefined
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -76,44 +101,123 @@ const PromptWizard: React.FC = () => {
           </p>
         </div>
 
+        {/* Mode Selection */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+          <h2 className="text-xl font-semibold mb-4 text-center">Оберіть режим роботи</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Mode 1: User Idea Only */}
+            <button
+              onClick={() => setMode('user_idea')}
+              className={`p-6 rounded-xl border-2 transition-all ${
+                mode === 'user_idea'
+                  ? 'border-green-500 bg-green-50 shadow-lg scale-105'
+                  : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
+              }`}
+            >
+              <div className="text-4xl mb-3">🎨</div>
+              <h3 className="text-lg font-bold mb-2">Тільки ідея</h3>
+              <p className="text-sm text-gray-600">
+                Згенерувати промпти на основі вашого опису БЕЗ аналізу конкурентів
+              </p>
+              {mode === 'user_idea' && (
+                <div className="mt-3 text-xs text-green-700 font-semibold">
+                  ✓ Обрано
+                </div>
+              )}
+            </button>
+
+            {/* Mode 2: All Trends */}
+            <button
+              onClick={() => setMode('all_trends')}
+              className={`p-6 rounded-xl border-2 transition-all ${
+                mode === 'all_trends'
+                  ? 'border-purple-500 bg-purple-50 shadow-lg scale-105'
+                  : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+              }`}
+            >
+              <div className="text-4xl mb-3">📊</div>
+              <h3 className="text-lg font-bold mb-2">Всі тренди</h3>
+              <p className="text-sm text-gray-600">
+                Проаналізувати ВСІ креативи з Vertex AI та згенерувати промпти
+              </p>
+              {mode === 'all_trends' && (
+                <div className="mt-3 text-xs text-purple-700 font-semibold">
+                  ✓ Обрано
+                </div>
+              )}
+            </button>
+
+            {/* Mode 3: Fixed Page ID */}
+            <button
+              onClick={() => setMode('fixed_page')}
+              className={`p-6 rounded-xl border-2 transition-all ${
+                mode === 'fixed_page'
+                  ? 'border-blue-500 bg-blue-50 shadow-lg scale-105'
+                  : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
+              }`}
+            >
+              <div className="text-4xl mb-3">🔍</div>
+              <h3 className="text-lg font-bold mb-2">Фіксований Page ID</h3>
+              <p className="text-sm text-gray-600">
+                Проаналізувати тільки креативи конкретної сторінки
+              </p>
+              {mode === 'fixed_page' && (
+                <div className="mt-3 text-xs text-blue-700 font-semibold">
+                  ✓ Обрано
+                </div>
+              )}
+            </button>
+          </div>
+        </div>
+
         {/* Input Section */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
           <h2 className="text-xl font-semibold mb-4">📋 Параметри генерації</h2>
           
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Page ID (опціонально)
-              </label>
-              <input
-                type="text"
-                value={pageId}
-                onChange={(e) => setPageId(e.target.value)}
-                placeholder="161970940341938 або залиште порожнім для всіх креативів"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Залиште порожнім щоб проаналізувати ВСІ креативи з Vertex AI аналізами, або введіть Page ID для конкретної сторінки
-              </p>
-            </div>
+            {/* Page ID input - only for fixed_page mode */}
+            {mode === 'fixed_page' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Page ID <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={pageId}
+                  onChange={(e) => setPageId(e.target.value)}
+                  placeholder="161970940341938"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Введіть Page ID сторінки для аналізу тільки її креативів
+                </p>
+              </div>
+            )}
 
+            {/* User idea textarea */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Ваша ідея креативу
+                {mode === 'user_idea' ? 'Ваша ідея креативу' : 'Ваша ідея (опціонально)'}
+                {mode === 'user_idea' && <span className="text-red-500"> *</span>}
               </label>
               <textarea
                 value={userIdea}
                 onChange={(e) => setUserIdea(e.target.value)}
-                placeholder="Опишіть свою ідею детально: що показати, який ефект, яка трансформація...
-                
-Приклад: Хочу показати як старе блідне фото перетворюється на яскраве HD зображення. Спочатку телефон лежить на столі з блідим фото на екрані, потім з'являється прогрес-бар, і фото стає яскравим і чітким з легким glow ефектом."
-                rows={6}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                placeholder={
+                  mode === 'user_idea'
+                    ? "Опишіть свою ідею детально:\n\nПриклад: Хочу показати як старе блідне фото перетворюється на яскраве HD зображення. Спочатку телефон лежить на столі з блідим фото на екрані, потім з'являється прогрес-бар, і фото стає яскравим і чітким з легким glow ефектом."
+                    : "Опціонально: опишіть свою ідею, або залиште порожнім для генерації на основі трендів"
+                }
+                rows={mode === 'user_idea' ? 8 : 5}
+                className={`w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 ${
+                  mode === 'user_idea' ? 'focus:ring-green-500' : 
+                  mode === 'all_trends' ? 'focus:ring-purple-500' : 'focus:ring-blue-500'
+                } focus:border-transparent`}
               />
               <p className="text-xs text-gray-500 mt-1">
-                💡 Якщо введете ідею БЕЗ Page ID → генерація без аналізу трендів (режим 1)
-                <br />
-                📊 Якщо залишите порожнім → згенерується на основі трендів конкурентів (режим 2-3)
+                {mode === 'user_idea' && '🎨 Режим "Тільки ідея" - опишіть що хочете побачити у креативі'}
+                {mode === 'all_trends' && '📊 Якщо не введете ідею - промпти будуть згенеровані на основі всіх трендів'}
+                {mode === 'fixed_page' && '🔍 Можна додати свою ідею або залишити порожнім для генерації на основі трендів цієї сторінки'}
               </p>
             </div>
           </div>
@@ -259,27 +363,18 @@ const PromptWizard: React.FC = () => {
         {/* Info Box */}
         {!result && !isLoading && (
           <div className="bg-white rounded-xl shadow-lg p-6">
-            <h3 className="text-lg font-semibold mb-3">ℹ️ Як це працює?</h3>
-            <ol className="space-y-2 text-sm text-gray-700">
-              <li>1️⃣ <strong>Збираємо аналізи</strong> - витягуємо всі Vertex AI аналізи креативів з бази (всі або по Page ID)</li>
-              <li>2️⃣ <strong>Аналізуємо тренди</strong> - Claude шукає паттерни: емоції, болі, хуки, стилі</li>
-              <li>3️⃣ <strong>Генеруємо промпти</strong> - створюємо оптимізовані промпти для Kling AI</li>
-              <li>4️⃣ <strong>Копіюємо</strong> - використовуємо в Kling для генерації відео</li>
-            </ol>
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs text-blue-800">
-                🎯 <strong>3 режими роботи:</strong>
-              </p>
-              <ul className="list-disc list-inside text-xs text-blue-700 mt-2 space-y-1">
-                <li><strong>Тільки ідея</strong> - введіть свою ідею без Page ID → промпти БЕЗ аналізу трендів</li>
-                <li><strong>Всі тренди</strong> - порожній Page ID + Vertex AI аналізи → тренди з усіх конкурентів</li>
-                <li><strong>Один конкурент</strong> - вказати Page ID → тренди тільки цієї сторінки</li>
-              </ul>
-            </div>
-            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-xs text-yellow-800">
-                💡 <strong>Порада:</strong> Спочатку проаналізуйте креативи конкурентів через Vertex AI в розділі "Аналіз конкурентів"
-              </p>
+            <h3 className="text-lg font-semibold mb-3">💡 Підказка</h3>
+            <p className="text-sm text-gray-700 mb-3">
+              Для режимів "Всі тренди" та "Фіксований Page ID" спочатку проаналізуйте креативи через Vertex AI в розділі <strong>"Аналіз Page ID"</strong>
+            </p>
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-200">
+              <p className="text-xs text-purple-900 font-semibold mb-2">🔄 Процес:</p>
+              <ol className="text-xs text-purple-800 space-y-1 list-decimal list-inside">
+                <li>Оберіть режим роботи</li>
+                <li>Заповніть необхідні поля</li>
+                <li>Натисніть "Згенерувати промпти"</li>
+                <li>Скопіюйте промпти для Kling AI</li>
+              </ol>
             </div>
           </div>
         )}
