@@ -372,6 +372,7 @@ async function analyzeMediaWithVertexAI(mediaUrl, mediaType, title, caption) {
           }
         });
       } else {
+    
         throw uploadError;
       }
     }
@@ -824,83 +825,67 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
         console.log(`   Media example: ${cards[0].original_image_url.substring(0, 80)}...`);
       }
       
-      // Якщо немає cards, створюємо один запис з основними даними
+      // Якщо немає cards - пропускаємо (немає медіа контенту)
       if (cards.length === 0) {
+        console.log(`   ⏭️ Skipping: no cards (no media content)`);
+        continue;
+      }
+      
+      // Зберігаємо кожну card окремо, але ТІЛЬКИ з медіа
+      cards.forEach((card, index) => {
+        const mediaUrl = card.video_hd_url || card.video_sd_url || 
+                        card.resized_image_url || card.original_image_url || null;
+        
+        // Пропускаємо card без медіа
+        if (!mediaUrl) {
+          console.log(`   ⏭️ Skipping card ${index}: no media URL`);
+          return;
+        }
+        
+        const mediaType = (card.video_hd_url || card.video_sd_url) ? 'video' : 'image';
+        
         const adData = {
           request_id: requestId,
-          ad_archive_id: item.ad_archive_id || `no-id-${Date.now()}`,
-          media_url: null,
-          media_type: 'image',
-          title: snapshot.caption || 'No title',
-          ad_link: null,
-          caption: snapshot.caption || null,
-          cta_text: snapshot.cta_text || null,
+          ad_archive_id: item.ad_archive_id || `no-id-${Date.now()}-${index}`,
+          media_url: mediaUrl,
+          media_type: mediaType,
+          title: card.title || card.body || snapshot.caption || 'No title',
+          ad_link: card.link_url || null,
+          caption: card.caption || snapshot.caption || null,
+          cta_text: card.cta_text || snapshot.cta_text || null,
           page_name: snapshot.page_name || pageId,
-          card_index: 0
+          card_index: index
         };
         
         adsToSave.push(adData);
         transformedAds.push({
-          id: item.ad_archive_id,
+          id: `${item.ad_archive_id}-${index}`,
           text: adData.title,
-          imageUrl: null,
-          videoUrl: null,
+          imageUrl: mediaType === 'image' ? mediaUrl : (card.video_preview_image_url || null),
+          videoUrl: mediaType === 'video' ? mediaUrl : null,
           pageName: adData.page_name,
-          adType: 'IMAGE',
+          adType: mediaType.toUpperCase(),
           createdAt: item.start_date || new Date().toISOString(),
           country: country,
           pageId: item.page_id || pageId,
           ctaText: adData.cta_text,
-          linkUrl: null,
+          linkUrl: adData.ad_link,
           publisherPlatforms: item.publisher_platform || []
         });
-      } else {
-        // Зберігаємо кожну card окремо
-        cards.forEach((card, index) => {
-          const mediaUrl = card.video_hd_url || card.video_sd_url || 
-                          card.resized_image_url || card.original_image_url || null;
-          const mediaType = (card.video_hd_url || card.video_sd_url) ? 'video' : 'image';
-          
-          const adData = {
-            request_id: requestId,
-            ad_archive_id: item.ad_archive_id || `no-id-${Date.now()}-${index}`,
-            media_url: mediaUrl,
-            media_type: mediaType,
-            title: card.title || card.body || snapshot.caption || 'No title',
-            ad_link: card.link_url || null,
-            caption: card.caption || snapshot.caption || null,
-            cta_text: card.cta_text || snapshot.cta_text || null,
-            page_name: snapshot.page_name || pageId,
-            card_index: index
-          };
-          
-          adsToSave.push(adData);
-          transformedAds.push({
-            id: `${item.ad_archive_id}-${index}`,
-            text: adData.title,
-            imageUrl: mediaType === 'image' ? mediaUrl : (card.video_preview_image_url || null),
-            videoUrl: mediaType === 'video' ? mediaUrl : null,
-            pageName: adData.page_name,
-            adType: mediaType.toUpperCase(),
-            createdAt: item.start_date || new Date().toISOString(),
-            country: country,
-            pageId: item.page_id || pageId,
-            ctaText: adData.cta_text,
-            linkUrl: adData.ad_link,
-            publisherPlatforms: item.publisher_platform || []
-          });
-        });
-      }
+        
+        console.log(`   ✅ Added card ${index}: ${mediaType} - ${mediaUrl.substring(0, 60)}...`);
+      });
     }
 
     // Зберігаємо всі НОВІ оголошення в Supabase
     let savedAds = [];
     
     if (adsToSave.length === 0) {
-      console.log(`\n⚠️ Всі оголошення виявилися дублікатами!`);
+      console.log(`\n⚠️ Жодного нового креативу з медіа не знайдено!`);
       console.log(`   Отримано з Apify: ${items.length} ads`);
       console.log(`   Дублікати: ${duplicatesCount} ads`);
-      console.log(`   Нові креативи: 0`);
+      console.log(`   Унікальні ads (оброблено): ${processedUniqueAds} ads`);
+      console.log(`   Нові креативи з медіа: 0`);
       
       return res.json({
         success: true,
@@ -910,7 +895,9 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
         duplicatesCount: duplicatesCount,
         totalScraped: items.length,
         newAdsForAnalysis: [],
-        message: `Знайдено 0 унікальних креативів. Всі ${duplicatesCount} оголошень вже є в базі.`,
+        message: duplicatesCount > 0 
+          ? `Знайдено 0 унікальних креативів з медіа. Всі ${duplicatesCount} оголошень вже є в базі.`
+          : `Знайдено 0 креативів з медіа. Оголошення не містять зображень або відео.`,
         source: 'apify-real'
       });
     }
@@ -929,7 +916,8 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     console.log(`\n✅ ПІДСУМОК:`);
     console.log(`   Отримано з Apify: ${items.length} ads`);
     console.log(`   Дублікати (пропущено): ${duplicatesCount} ads`);
-    console.log(`   Нові креативи (збережено): ${savedAds.length} cards`);
+    console.log(`   Унікальні ads з медіа: ${processedUniqueAds} ads`);
+    console.log(`   Нові креативи (збережено): ${savedAds.length} cards з медіа`);
     
     // Зберігаємо інфо для автоматичного аналізу
     savedAds.forEach(ad => {
