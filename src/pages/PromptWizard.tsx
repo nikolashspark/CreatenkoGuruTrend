@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 const RAILWAY_API_URL = import.meta.env.VITE_RAILWAY_API_URL || 'http://localhost:3000';
 
 interface PromptResult {
-  trendAnalysis: string;
+  trendAnalysis: string | null;
   prompts: {
     startingFrame?: string;
     finalFrame?: string;
@@ -12,27 +12,23 @@ interface PromptResult {
     raw?: string;
   };
   adsAnalyzed: number;
+  mode?: string;
 }
 
 const PromptWizard: React.FC = () => {
-  const [pageId, setPageId] = useState('161970940341938');
+  const [pageId, setPageId] = useState('');
   const [userIdea, setUserIdea] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<PromptResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const generatePrompts = async () => {
-    if (!pageId.trim()) {
-      setError('Введіть Page ID');
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
     setResult(null);
 
     try {
-      console.log('🪄 Generating Kling prompts for page:', pageId);
+      console.log('🪄 Generating Kling prompts for page:', pageId || 'ALL');
 
       const response = await fetch(`${RAILWAY_API_URL}/api/prompt-wizard/generate`, {
         method: 'POST',
@@ -40,7 +36,7 @@ const PromptWizard: React.FC = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          pageId,
+          pageId: pageId || undefined,
           userIdea: userIdea || undefined
         })
       });
@@ -87,40 +83,44 @@ const PromptWizard: React.FC = () => {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Page ID (з Competitor Analysis)
+                Page ID (опціонально)
               </label>
               <input
                 type="text"
                 value={pageId}
                 onChange={(e) => setPageId(e.target.value)}
-                placeholder="161970940341938"
+                placeholder="161970940341938 або залиште порожнім для всіх креативів"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Введіть Page ID сторінки, креативи якої вже проаналізовані через Vertex AI
+                Залиште порожнім щоб проаналізувати ВСІ креативи з Vertex AI аналізами, або введіть Page ID для конкретної сторінки
               </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Ваша ідея креативу (опціонально)
+                Ваша ідея креативу
               </label>
               <textarea
                 value={userIdea}
                 onChange={(e) => setUserIdea(e.target.value)}
-                placeholder="Наприклад: Хочу показати як старе блідне фото перетворюється на яскраве HD з ефектом sparkle..."
-                rows={4}
+                placeholder="Опишіть свою ідею детально: що показати, який ефект, яка трансформація...
+                
+Приклад: Хочу показати як старе блідне фото перетворюється на яскраве HD зображення. Спочатку телефон лежить на столі з блідим фото на екрані, потім з'являється прогрес-бар, і фото стає яскравим і чітким з легким glow ефектом."
+                rows={6}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
               />
               <p className="text-xs text-gray-500 mt-1">
-                Якщо залишите порожнім - згенерується на основі трендів
+                💡 Якщо введете ідею БЕЗ Page ID → генерація без аналізу трендів (режим 1)
+                <br />
+                📊 Якщо залишите порожнім → згенерується на основі трендів конкурентів (режим 2-3)
               </p>
             </div>
           </div>
 
           <button
             onClick={generatePrompts}
-            disabled={isLoading || !pageId.trim()}
+            disabled={isLoading}
             className="mt-6 w-full py-3 px-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white font-semibold rounded-lg shadow-md hover:shadow-lg transform hover:scale-[1.02] transition disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
           >
             {isLoading ? '⏳ Генерується...' : '🪄 Згенерувати промпти'}
@@ -138,19 +138,33 @@ const PromptWizard: React.FC = () => {
         {result && (
           <div className="space-y-6">
             {/* Trend Analysis */}
-            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-6 shadow-lg">
-              <h3 className="text-2xl font-bold text-purple-900 mb-3 flex items-center gap-2">
-                📊 Аналіз трендів
-                <span className="text-sm font-normal text-gray-600">
-                  (на основі {result.adsAnalyzed} креативів)
-                </span>
-              </h3>
-              <div className="prose max-w-none">
-                <pre className="text-sm text-gray-800 whitespace-pre-wrap bg-white p-4 rounded-lg shadow-inner max-h-96 overflow-y-auto">
-                  {result.trendAnalysis}
-                </pre>
+            {result.trendAnalysis && (
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-xl p-6 shadow-lg">
+                <h3 className="text-2xl font-bold text-purple-900 mb-3 flex items-center gap-2">
+                  📊 Аналіз трендів
+                  <span className="text-sm font-normal text-gray-600">
+                    (на основі {result.adsAnalyzed} креативів)
+                  </span>
+                </h3>
+                <div className="prose max-w-none">
+                  <pre className="text-sm text-gray-800 whitespace-pre-wrap bg-white p-4 rounded-lg shadow-inner max-h-96 overflow-y-auto">
+                    {result.trendAnalysis}
+                  </pre>
+                </div>
               </div>
-            </div>
+            )}
+            
+            {/* Mode indicator */}
+            {!result.trendAnalysis && result.adsAnalyzed === 0 && (
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-6 shadow-lg">
+                <h3 className="text-xl font-bold text-green-900 mb-2">
+                  🎨 Режим: Генерація на основі вашої ідеї
+                </h3>
+                <p className="text-sm text-green-800">
+                  Промпти згенеровані БЕЗ аналізу трендів конкурентів - тільки на основі вашого опису
+                </p>
+              </div>
+            )}
 
             {/* Kling Prompts */}
             {result.prompts.startingFrame && (
@@ -247,14 +261,24 @@ const PromptWizard: React.FC = () => {
           <div className="bg-white rounded-xl shadow-lg p-6">
             <h3 className="text-lg font-semibold mb-3">ℹ️ Як це працює?</h3>
             <ol className="space-y-2 text-sm text-gray-700">
-              <li>1️⃣ <strong>Збираємо аналізи</strong> - витягуємо всі Gemini аналізи креативів з бази</li>
+              <li>1️⃣ <strong>Збираємо аналізи</strong> - витягуємо всі Vertex AI аналізи креативів з бази (всі або по Page ID)</li>
               <li>2️⃣ <strong>Аналізуємо тренди</strong> - Claude шукає паттерни: емоції, болі, хуки, стилі</li>
               <li>3️⃣ <strong>Генеруємо промпти</strong> - створюємо оптимізовані промпти для Kling AI</li>
               <li>4️⃣ <strong>Копіюємо</strong> - використовуємо в Kling для генерації відео</li>
             </ol>
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-xs text-blue-800">
+                🎯 <strong>3 режими роботи:</strong>
+              </p>
+              <ul className="list-disc list-inside text-xs text-blue-700 mt-2 space-y-1">
+                <li><strong>Тільки ідея</strong> - введіть свою ідею без Page ID → промпти БЕЗ аналізу трендів</li>
+                <li><strong>Всі тренди</strong> - порожній Page ID + Vertex AI аналізи → тренди з усіх конкурентів</li>
+                <li><strong>Один конкурент</strong> - вказати Page ID → тренди тільки цієї сторінки</li>
+              </ul>
+            </div>
+            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-xs text-yellow-800">
-                💡 <strong>Порада:</strong> Спочатку проаналізуйте креативи конкурентів через Vertex AI в розділі "Competitor Analysis"
+                💡 <strong>Порада:</strong> Спочатку проаналізуйте креативи конкурентів через Vertex AI в розділі "Аналіз конкурентів"
               </p>
             </div>
           </div>

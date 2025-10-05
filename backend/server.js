@@ -1371,31 +1371,116 @@ app.post('/api/prompt-wizard/generate', async (req, res) => {
   try {
     const { pageId, userIdea } = req.body;
     
-    if (!pageId) {
-      return res.status(400).json({ error: 'Page ID is required' });
-    }
-    
     console.log('=== PROMPT WIZARD: Generating Kling prompts ===');
-    console.log('Page ID:', pageId);
+    console.log('Page ID:', pageId || 'ALL');
     console.log('User idea:', userIdea);
     
-    // Крок 1: Отримати всі аналізи з Vertex AI для цього page_id
-    const { data: ads, error: fetchError } = await supabase
+    // Крок 1: Отримати всі аналізи з Vertex AI (з фільтром по page_id якщо вказано)
+    let query = supabase
       .from('facebook_ads')
-      .select('id, title, vertex_analysis, media_type')
-      .eq('page_name', pageId)
+      .select('id, title, vertex_analysis, media_type, page_name')
       .not('vertex_analysis', 'is', null);
+    
+    // Якщо вказано page_id - фільтруємо
+    if (pageId && pageId.trim()) {
+      query = query.eq('page_name', pageId);
+    }
+    
+    const { data: ads, error: fetchError } = await query;
     
     if (fetchError) {
       throw new Error(`Failed to fetch ads: ${fetchError.message}`);
     }
     
-    console.log(`📊 Found ${ads?.length || 0} ads with Vertex AI analysis for page ${pageId}`);
+    console.log(`📊 Found ${ads?.length || 0} ads with Vertex AI analysis${pageId ? ` for page ${pageId}` : ' (all pages)'}`);
     
-    if (!ads || ads.length === 0) {
+    // Якщо немає ads але є userIdea - працюємо без trend analysis
+    if ((!ads || ads.length === 0) && (!userIdea || !userIdea.trim())) {
       return res.status(404).json({
         error: 'No analyzed ads found',
-        message: 'Спочатку проаналізуйте креативи через Vertex AI'
+        message: 'Введіть свою ідею креативу АБО спочатку проаналізуйте креативи через Vertex AI'
+      });
+    }
+    
+    // Режим 3: Тільки ідея користувача, без Vertex аналізів
+    if ((!ads || ads.length === 0) && userIdea && userIdea.trim()) {
+      console.log('🎨 MODE: User idea only (no Vertex AI context)');
+      
+      // Отримуємо Kling Optimizer промпт з БД
+      const { data: systemPrompts } = await supabase
+        .from('system_prompts')
+        .select('prompt')
+        .eq('key', 'KLING_OPTIMIZER_PROMPT')
+        .eq('is_active', true)
+        .single();
+      
+      const klingOptimizerPromptText = systemPrompts?.prompt || PROMPTS.KLING_OPTIMIZER_PROMPT;
+      
+      // Одразу генеруємо Kling промпти без trend analysis
+      const klingPrompt = `${klingOptimizerPromptText}
+
+===== ІДЕЯ КОРИСТУВАЧА =====
+
+${userIdea}
+
+===== ЗАВДАННЯ =====
+
+Створи оптимізовані промпти для Kling AI на основі цієї ідеї.
+Надай відповідь в JSON форматі:
+
+{
+  "startingFrame": "...",
+  "finalFrame": "...",
+  "klingPrompt": "...",
+  "explanation": "Короткий опис чому ці промпти ефективні"
+}`;
+
+      const klingResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.CLAUDE_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          messages: [{
+            role: 'user',
+            content: klingPrompt
+          }]
+        })
+      });
+      
+      if (!klingResponse.ok) {
+        const errorText = await klingResponse.text();
+        throw new Error(`Claude Kling generation failed: ${errorText}`);
+      }
+      
+      const klingData = await klingResponse.json();
+      const klingResult = klingData.content[0].text;
+      
+      console.log('✅ Kling prompts generated (user idea only)');
+      
+      let parsedPrompts;
+      try {
+        const jsonMatch = klingResult.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsedPrompts = JSON.parse(jsonMatch[0]);
+        } else {
+          parsedPrompts = JSON.parse(klingResult);
+        }
+      } catch (parseError) {
+        console.warn('Failed to parse JSON, returning raw text');
+        parsedPrompts = { raw: klingResult };
+      }
+      
+      return res.json({
+        success: true,
+        trendAnalysis: null,
+        prompts: parsedPrompts,
+        adsAnalyzed: 0,
+        mode: 'user_idea_only'
       });
     }
     
