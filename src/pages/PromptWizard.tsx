@@ -130,35 +130,35 @@ const PromptWizard: React.FC = () => {
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600 mb-4">
+        <div className="text-center mb-6 lg:mb-8">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-blue-600 mb-3 lg:mb-4">
             🪄 Prompt Wizard
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-base sm:text-lg text-gray-600">
             Аналіз трендів конкурентів → Kling AI промпти
           </p>
         </div>
 
         {/* Mode Selection */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-center">Оберіть режим роботи</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6 lg:mb-8">
+          <h2 className="text-lg sm:text-xl font-semibold mb-4 text-center">Оберіть режим роботи</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
             {/* Mode 1: User Idea Only */}
             <button
               onClick={() => setMode('user_idea')}
-              className={`p-6 rounded-xl border-2 transition-all ${
+              className={`p-4 sm:p-6 rounded-xl border-2 transition-all ${
                 mode === 'user_idea'
                   ? 'border-green-500 bg-green-50 shadow-lg scale-105'
                   : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
               }`}
             >
-              <div className="text-4xl mb-3">🎨</div>
-              <h3 className="text-lg font-bold mb-2">Тільки ідея</h3>
-              <p className="text-sm text-gray-600">
+              <div className="text-3xl sm:text-4xl mb-2 sm:mb-3">🎨</div>
+              <h3 className="text-base sm:text-lg font-bold mb-1 sm:mb-2">Тільки ідея</h3>
+              <p className="text-xs sm:text-sm text-gray-600">
                 Згенерувати промпти на основі вашого опису БЕЗ аналізу конкурентів
               </p>
               {mode === 'user_idea' && (
-                <div className="mt-3 text-xs text-green-700 font-semibold">
+                <div className="mt-2 sm:mt-3 text-xs text-green-700 font-semibold">
                   ✓ Обрано
                 </div>
               )}
@@ -167,19 +167,19 @@ const PromptWizard: React.FC = () => {
             {/* Mode 2: All Trends */}
             <button
               onClick={() => setMode('all_trends')}
-              className={`p-6 rounded-xl border-2 transition-all ${
+              className={`p-4 sm:p-6 rounded-xl border-2 transition-all ${
                 mode === 'all_trends'
                   ? 'border-purple-500 bg-purple-50 shadow-lg scale-105'
                   : 'border-gray-200 hover:border-purple-300 hover:bg-purple-50'
               }`}
             >
-              <div className="text-4xl mb-3">📊</div>
-              <h3 className="text-lg font-bold mb-2">Всі тренди</h3>
-              <p className="text-sm text-gray-600">
+              <div className="text-3xl sm:text-4xl mb-2 sm:mb-3">📊</div>
+              <h3 className="text-base sm:text-lg font-bold mb-1 sm:mb-2">Всі тренди</h3>
+              <p className="text-xs sm:text-sm text-gray-600">
                 Проаналізувати ВСІ креативи з Vertex AI та згенерувати промпти
               </p>
               {mode === 'all_trends' && (
-                <div className="mt-3 text-xs text-purple-700 font-semibold">
+                <div className="mt-2 sm:mt-3 text-xs text-purple-700 font-semibold">
                   ✓ Обрано
                 </div>
               )}
@@ -188,19 +188,19 @@ const PromptWizard: React.FC = () => {
             {/* Mode 3: Fixed Page ID */}
             <button
               onClick={() => setMode('fixed_page')}
-              className={`p-6 rounded-xl border-2 transition-all ${
+              className={`p-4 sm:p-6 rounded-xl border-2 transition-all ${
                 mode === 'fixed_page'
                   ? 'border-blue-500 bg-blue-50 shadow-lg scale-105'
                   : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50'
               }`}
             >
-              <div className="text-4xl mb-3">🔍</div>
-              <h3 className="text-lg font-bold mb-2">Фіксований Page ID</h3>
-              <p className="text-sm text-gray-600">
+              <div className="text-3xl sm:text-4xl mb-2 sm:mb-3">🔍</div>
+              <h3 className="text-base sm:text-lg font-bold mb-1 sm:mb-2">Фіксований Page ID</h3>
+              <p className="text-xs sm:text-sm text-gray-600">
                 Проаналізувати тільки креативи конкретної сторінки
               </p>
               {mode === 'fixed_page' && (
-                <div className="mt-3 text-xs text-blue-700 font-semibold">
+                <div className="mt-2 sm:mt-3 text-xs text-blue-700 font-semibold">
                   ✓ Обрано
                 </div>
               )}
@@ -209,7 +209,7 @@ const PromptWizard: React.FC = () => {
         </div>
 
         {/* Input Section */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 mb-6 lg:mb-8">
           <h2 className="text-xl font-semibold mb-4">📋 Параметри генерації</h2>
           
           <div className="space-y-4">

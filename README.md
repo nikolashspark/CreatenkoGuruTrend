@@ -539,7 +539,7 @@ Backend запуститься на [http://localhost:3000](http://localhost:300
 
 ## 📸 Скріншоти
 
-### Головна сторінка
+### Головна сторінка - 🔨 Generation (в розробці)
 <!-- SCREENSHOT: Розмістіть скріншот головної сторінки Generation -->
 <!-- Що показати: загальний вигляд інтерфейсу, бічне меню, хедер -->
 
@@ -610,7 +610,7 @@ GuruTrend/
 │   │   └── FileUpload.tsx        # Компонент завантаження файлів
 │   │
 │   ├── pages/
-│   │   ├── Generation.tsx        # Головна сторінка (не завершена)
+│   │   ├── Generation.tsx        # 🔨 Головна сторінка (в розробці)
 │   │   ├── CompetitorAnalysis.tsx # Аналіз Page ID (Facebook Ads)
 │   │   ├── PromptWizard.tsx      # Генерація Kling промптів
 │   │   └── Config.tsx            # Управління системними промптами

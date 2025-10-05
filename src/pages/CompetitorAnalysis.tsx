@@ -250,32 +250,33 @@ const CompetitorAnalysis: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+        <div className="text-center mb-6 lg:mb-8">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2 lg:mb-4">
             🔍 Аналіз Page ID
           </h1>
-          <p className="text-lg text-gray-600">
+          <p className="text-base sm:text-lg text-gray-600">
             Аналізуйте креативи з Facebook Ads Library за Page ID
           </p>
         </div>
 
         {/* Вкладки */}
-        <div className="bg-white rounded-lg shadow-md p-4 mb-6">
-          <div className="flex gap-4">
+        <div className="bg-white rounded-lg shadow-md p-3 sm:p-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-4">
             <button
               onClick={loadSavedAds}
               disabled={isLoading}
-              className={`flex-1 py-3 px-6 rounded-lg font-semibold transition ${
+              className={`flex-1 py-2 sm:py-3 px-4 sm:px-6 rounded-lg font-semibold transition text-sm sm:text-base ${
                 viewMode === 'saved'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               } disabled:opacity-50`}
             >
-              💾 Збережені оголошення ({ads.length > 0 && viewMode === 'saved' ? ads.length : '...'})
+              <span className="hidden sm:inline">💾 Збережені оголошення</span>
+              <span className="sm:hidden">💾 Збережені</span> ({ads.length > 0 && viewMode === 'saved' ? ads.length : '...'})
             </button>
             <button
               onClick={() => setViewMode('new')}
-              className={`flex-1 py-3 px-6 rounded-lg font-semibold transition ${
+              className={`flex-1 py-2 sm:py-3 px-4 sm:px-6 rounded-lg font-semibold transition text-sm sm:text-base ${
                 viewMode === 'new'
                   ? 'bg-green-600 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
@@ -443,7 +444,7 @@ const CompetitorAnalysis: React.FC = () => {
                       <button
                         onClick={() => handleAnalyzeAd(ad.id, !!aiAnalysis[ad.id])}
                         disabled={analyzingAds[ad.id]}
-                        className={`w-full py-2 px-3 rounded text-sm font-medium transition ${
+                        className={`w-full py-2 px-3 rounded text-xs sm:text-sm font-medium transition ${
                           aiAnalysis[ad.id]
                             ? 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-300'
                             : 'bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-300'
@@ -452,9 +453,9 @@ const CompetitorAnalysis: React.FC = () => {
                         {analyzingAds[ad.id] ? (
                           '⏳ Аналізуємо...'
                         ) : aiAnalysis[ad.id] ? (
-                          '🔄 Оновити аналіз'
+                          <><span className="hidden sm:inline">🔄 Оновити аналіз</span><span className="sm:hidden">🔄 Оновити</span></>
                         ) : (
-                          `🤖 Аналізувати ${ad.adType === 'VIDEO' ? 'відео' : 'картинку'}`
+                          <><span className="hidden sm:inline">{`🤖 Аналізувати ${ad.adType === 'VIDEO' ? 'відео' : 'картинку'}`}</span><span className="sm:hidden">🤖 Аналіз</span></>
                         )}
                       </button>
                     </div>
