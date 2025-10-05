@@ -244,20 +244,35 @@ app.post('/api/facebook-ads/:id/analyze', async (req, res) => {
     
     let analysisResult;
     
-    // Використовуємо Gemini для всього (відео і картинки)
-    if (!process.env.GEMINI_API_KEY && !process.env.VERTEX_AI_CREDENTIALS) {
-      throw new Error('Neither GEMINI_API_KEY nor VERTEX_AI_CREDENTIALS configured');
-    }
-    
-    const mediaType = ad.media_type === 'video' ? 'відео' : 'картинки';
-    console.log(`🤖 Analyzing ${mediaType} with Gemini...`);
-    
-    if (process.env.VERTEX_AI_CREDENTIALS) {
-      console.log('Using Vertex AI Gemini...');
-      analysisResult = await analyzeMediaWithVertexAI(ad.media_url, ad.media_type, ad.title, ad.caption);
+    // Вибираємо метод аналізу в залежності від наявних ключів
+    if (ad.media_type === 'video') {
+      // Для відео потрібен Gemini (Vertex AI або Gemini API)
+      if (!process.env.GEMINI_API_KEY && !process.env.VERTEX_AI_CREDENTIALS) {
+        throw new Error('Video analysis requires GEMINI_API_KEY or VERTEX_AI_CREDENTIALS. Please configure one of them.');
+      }
+      
+      console.log('🎥 Analyzing video...');
+      if (process.env.VERTEX_AI_CREDENTIALS) {
+        console.log('Using Vertex AI Gemini for video...');
+        analysisResult = await analyzeMediaWithVertexAI(ad.media_url, ad.media_type, ad.title, ad.caption);
+      } else {
+        console.log('Using Gemini API for video...');
+        analysisResult = await analyzeMediaWithGeminiAPI(ad.media_url, ad.media_type, ad.title, ad.caption);
+      }
     } else {
-      console.log('Using Gemini API...');
-      analysisResult = await analyzeMediaWithGeminiAPI(ad.media_url, ad.media_type, ad.title, ad.caption);
+      // Для картинок можемо використати Claude Vision
+      if (process.env.VERTEX_AI_CREDENTIALS) {
+        console.log('🖼️ Analyzing image with Vertex AI Gemini...');
+        analysisResult = await analyzeMediaWithVertexAI(ad.media_url, ad.media_type, ad.title, ad.caption);
+      } else if (process.env.GEMINI_API_KEY) {
+        console.log('🖼️ Analyzing image with Gemini API...');
+        analysisResult = await analyzeMediaWithGeminiAPI(ad.media_url, ad.media_type, ad.title, ad.caption);
+      } else if (process.env.CLAUDE_API_KEY) {
+        console.log('🖼️ Analyzing image with Claude Vision...');
+        analysisResult = await analyzeImageWithClaude(ad.media_url, ad.title, ad.caption);
+      } else {
+        throw new Error('Image analysis requires VERTEX_AI_CREDENTIALS, GEMINI_API_KEY, or CLAUDE_API_KEY');
+      }
     }
     
     console.log('✅ Analysis completed');
@@ -322,6 +337,7 @@ async function analyzeMediaWithVertexAI(mediaUrl, mediaType, title, caption) {
   // Завантажуємо в Vertex AI File API
   const uploadUrl = `https://${location}-aiplatform.googleapis.com/upload/v1/projects/${projectId}/locations/${location}/files`;
   
+  console.log('Step 1: Starting resumable upload...');
   const uploadResponse = await fetch(uploadUrl, {
     method: 'POST',
     headers: {
@@ -335,8 +351,23 @@ async function analyzeMediaWithVertexAI(mediaUrl, mediaType, title, caption) {
     body: JSON.stringify({ file: { display_name: displayName } })
   });
   
-  const uploadSessionUrl = uploadResponse.headers.get('x-goog-upload-url');
+  console.log('Upload response status:', uploadResponse.status);
   
+  if (!uploadResponse.ok) {
+    const errorText = await uploadResponse.text();
+    console.error('Upload initiation error:', errorText);
+    throw new Error(`Failed to start upload: ${uploadResponse.statusText} - ${errorText}`);
+  }
+  
+  const uploadSessionUrl = uploadResponse.headers.get('x-goog-upload-url');
+  console.log('Upload session URL:', uploadSessionUrl);
+  
+  if (!uploadSessionUrl) {
+    console.error('No upload session URL in headers:', Array.from(uploadResponse.headers.entries()));
+    throw new Error('No upload session URL received from Vertex AI');
+  }
+  
+  console.log('Step 2: Uploading file content...');
   const fileUploadResponse = await fetch(uploadSessionUrl, {
     method: 'POST',
     headers: {
@@ -499,6 +530,68 @@ async function analyzeMediaWithGeminiAPI(mediaUrl, mediaType, title, caption) {
   }
   
   return data.candidates[0].content.parts[0].text;
+}
+
+// Helper: аналіз картинки через Claude Vision (fallback)
+async function analyzeImageWithClaude(imageUrl, title, caption) {
+  // Завантажуємо картинку та конвертуємо в base64
+  const imageResponse = await fetch(imageUrl);
+  const imageBuffer = await imageResponse.arrayBuffer();
+  const base64Image = Buffer.from(imageBuffer).toString('base64');
+  
+  // Визначаємо media type
+  const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+  
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': process.env.CLAUDE_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'claude-3-5-sonnet-20241022',
+      max_tokens: 2048,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: contentType,
+              data: base64Image
+            }
+          },
+          {
+            type: 'text',
+            text: `Проаналізуй цей рекламний креатив детально:
+
+Заголовок: ${title || 'N/A'}
+Опис: ${caption || 'N/A'}
+
+Надай аналіз:
+- Візуальна композиція та дизайн
+- Кольорова схема
+- Текст та типографіка
+- Емоційний вплив
+- Call-to-action (CTA)
+- Цільова аудиторія
+- Що працює добре
+- Рекомендації для покращення`
+          }
+        ]
+      }]
+    })
+  });
+  
+  const data = await response.json();
+  
+  if (!data.content || !data.content[0]) {
+    throw new Error('Invalid Claude API response');
+  }
+  
+  return data.content[0].text;
 }
 
 // Facebook Ads Scraper endpoint через MCP
