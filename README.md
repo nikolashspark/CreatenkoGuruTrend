@@ -563,19 +563,23 @@ Backend запуститься на [http://localhost:3000](http://localhost:300
 
 ---
 
-### Prompt Wizard - Режим "Всі тренди"
-<!-- SCREENSHOT: Інтерфейс Prompt Wizard у режимі 2 -->
-<!-- Що показати: вибраний режим "Всі тренди", згенеровані промпти (Starting Frame, Final Frame, Kling Prompt) -->
-
-![Prompt Wizard - All Trends](./docs/screenshots/prompt-wizard-all.png)
-
----
-
 ### Prompt Wizard - Режим "Фіксований Page ID"
 <!-- SCREENSHOT: Інтерфейс з випадаючим списком Page ID -->
 <!-- Що показати: dropdown з Page ID, згенеровані промпти на основі конкретного Page ID -->
 
-![Prompt Wizard - Fixed Page](./docs/screenshots/prompt-wizard-fixed.png)
+![Prompt Wizard - Fixed Page 1](./docs/screenshots/fix1.jpg)
+
+![Prompt Wizard - Fixed Page 2](./docs/screenshots/fix2.jpg)
+
+![Prompt Wizard - Fixed Page 3](./docs/screenshots/fix3.jpg)
+
+---
+
+### Prompt Wizard - Режим "Тільки ідея"
+<!-- SCREENSHOT: Інтерфейс Prompt Wizard у режимі 1 -->
+<!-- Що показати: вибраний режим "Тільки ідея", введена ідея користувача, згенеровані промпти БЕЗ аналізу трендів -->
+
+![Prompt Wizard - User Idea Only](./docs/screenshots/idea1.jpg)
 
 ---
 
@@ -709,11 +713,10 @@ Contributions, issues and feature requests вітаються!
 
 ---
 
-## 👨‍💻 Автор
+## 👨‍💻 Автори
 
-**GuruTrend Team**
-
-- GitHub: [@yourusername](https://github.com/yourusername)
+- **Mykola Nikitenko**
+- **Dmytro Buhaiov**
 
 ---
 
