@@ -1410,42 +1410,22 @@ app.put('/api/system-prompts/:id', async (req, res) => {
 // POST endpoint для Prompt Wizard - аналіз трендів та генерація Kling промптів
 app.post('/api/prompt-wizard/generate', async (req, res) => {
   try {
-    const { pageId, userIdea } = req.body;
+    const { mode, pageId, userIdea } = req.body;
     
     console.log('=== PROMPT WIZARD: Generating Kling prompts ===');
-    console.log('Page ID:', pageId || 'ALL');
-    console.log('User idea:', userIdea);
+    console.log('Mode:', mode);
+    console.log('Page ID:', pageId || 'N/A');
+    console.log('User idea:', userIdea ? 'Yes' : 'No');
     
-    // Крок 1: Отримати всі аналізи з Vertex AI (з фільтром по page_id якщо вказано)
-    let query = supabase
-      .from('facebook_ads')
-      .select('id, title, vertex_analysis, media_type, page_name')
-      .not('vertex_analysis', 'is', null);
-    
-    // Якщо вказано page_id - фільтруємо
-    if (pageId && pageId.trim()) {
-      query = query.eq('page_name', pageId);
-    }
-    
-    const { data: ads, error: fetchError } = await query;
-    
-    if (fetchError) {
-      throw new Error(`Failed to fetch ads: ${fetchError.message}`);
-    }
-    
-    console.log(`📊 Found ${ads?.length || 0} ads with Vertex AI analysis${pageId ? ` for page ${pageId}` : ' (all pages)'}`);
-    
-    // Якщо немає ads але є userIdea - працюємо без trend analysis
-    if ((!ads || ads.length === 0) && (!userIdea || !userIdea.trim())) {
-      return res.status(404).json({
-        error: 'No analyzed ads found',
-        message: 'Введіть свою ідею креативу АБО спочатку проаналізуйте креативи через Vertex AI'
-      });
-    }
-    
-    // Режим 3: Тільки ідея користувача, без Vertex аналізів
-    if ((!ads || ads.length === 0) && userIdea && userIdea.trim()) {
-      console.log('🎨 MODE: User idea only (no Vertex AI context)');
+    // Режим 1: Тільки ідея користувача, БЕЗ аналізу трендів
+    if (mode === 'user_idea') {
+      console.log('🎨 MODE 1: User idea only (no trend analysis)');
+      
+      if (!userIdea || !userIdea.trim()) {
+        return res.status(400).json({
+          error: 'User idea is required for this mode'
+        });
+      }
       
       // Отримуємо Kling Optimizer промпт з БД
       const { data: systemPrompts } = await supabase
@@ -1522,6 +1502,59 @@ ${userIdea}
         prompts: parsedPrompts,
         adsAnalyzed: 0,
         mode: 'user_idea_only'
+      });
+    }
+    
+    // Режим 2 і 3: Завантажити креативи з аналізами для trend analysis
+    let ads = [];
+    
+    if (mode === 'all_trends') {
+      console.log('🌍 MODE 2: All trends (all pages)');
+      
+      // Завантажити всі креативи з vertex_analysis
+      const { data, error: fetchError } = await supabase
+        .from('facebook_ads')
+        .select('id, title, vertex_analysis, media_type, page_name')
+        .not('vertex_analysis', 'is', null);
+      
+      if (fetchError) {
+        throw new Error(`Failed to fetch ads: ${fetchError.message}`);
+      }
+      
+      ads = data || [];
+      console.log(`📊 Found ${ads.length} ads with Vertex AI analysis (all pages)`);
+      
+    } else if (mode === 'fixed_page') {
+      console.log('📌 MODE 3: Fixed page ID:', pageId);
+      
+      if (!pageId || !pageId.trim()) {
+        return res.status(400).json({
+          error: 'Page ID is required for fixed_page mode'
+        });
+      }
+      
+      // Завантажити креативи тільки для цього page_id
+      const { data, error: fetchError } = await supabase
+        .from('facebook_ads')
+        .select('id, title, vertex_analysis, media_type, page_name')
+        .not('vertex_analysis', 'is', null)
+        .eq('page_name', pageId);
+      
+      if (fetchError) {
+        throw new Error(`Failed to fetch ads: ${fetchError.message}`);
+      }
+      
+      ads = data || [];
+      console.log(`📊 Found ${ads.length} ads with Vertex AI analysis for page ${pageId}`);
+    }
+    
+    // Перевірка чи є креативи для аналізу
+    if (!ads || ads.length === 0) {
+      return res.status(404).json({
+        error: 'No analyzed ads found',
+        message: mode === 'fixed_page' 
+          ? `Немає проаналізованих креативів для Page ID: ${pageId}`
+          : 'Спочатку проаналізуйте креативи через Vertex AI'
       });
     }
     
@@ -1602,19 +1635,18 @@ ${allAnalyses}
     // Крок 5: Згенерувати Kling промпти на основі трендів та ідеї користувача
     console.log('🔄 Generating Kling prompts...');
     
+    // Додаємо ідею користувача тільки якщо вона є
+    const userIdeaSection = (userIdea && userIdea.trim()) 
+      ? `\n\n===== ІДЕЯ КОРИСТУВАЧА =====\n\n${userIdea}\n\n` 
+      : '';
+    
     const klingPrompt = `${klingOptimizerPromptText}
 
 ===== АНАЛІЗ ТРЕНДІВ =====
 
-${trendAnalysis}
+${trendAnalysis}${userIdeaSection}===== ЗАВДАННЯ =====
 
-===== ІДЕЯ КОРИСТУВАЧА =====
-
-${userIdea || 'Створи промпти для фото енхансер додатку, що демонструє трансформацію старих блідих фото в яскраві HD версії'}
-
-===== ЗАВДАННЯ =====
-
-На основі трендів конкурентів та ідеї користувача, створи оптимізовані промпти для Kling AI.
+На основі ${userIdea && userIdea.trim() ? 'трендів конкурентів та ідеї користувача' : 'трендів конкурентів'}, створи оптимізовані промпти для Kling AI.
 Надай відповідь в JSON форматі:
 
 {

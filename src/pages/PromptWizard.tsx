@@ -84,13 +84,13 @@ const PromptWizard: React.FC = () => {
       console.log('Page ID:', mode === 'fixed_page' ? pageId : mode === 'all_trends' ? 'ALL' : 'N/A');
       console.log('Has user idea:', !!userIdea);
 
-      const requestBody: { pageId?: string; userIdea?: string } = {};
+      const requestBody: { mode: string; pageId?: string; userIdea?: string } = {
+        mode: mode // передаємо режим на backend
+      };
       
       if (mode === 'fixed_page') {
         requestBody.pageId = pageId;
       }
-      // mode === 'all_trends': no pageId
-      // mode === 'user_idea': no pageId
       
       if (userIdea.trim()) {
         requestBody.userIdea = userIdea;
