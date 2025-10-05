@@ -343,25 +343,32 @@ async function analyzeMediaWithVertexAI(mediaUrl, mediaType, title, caption) {
   const fileName = `temp/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
   
   try {
-    // Створюємо bucket якщо не існує
-    const [buckets] = await storage.getBuckets();
-    const bucketExists = buckets.some(b => b.name === bucketName);
-    
-    if (!bucketExists) {
-      console.log(`Creating bucket: ${bucketName}`);
-      await storage.createBucket(bucketName, {
-        location: location.toUpperCase(),
-        storageClass: 'STANDARD'
-      });
-    }
-    
     const bucket = storage.bucket(bucketName);
     const file = bucket.file(fileName);
     
+    // Спробуємо завантажити файл напряму
     await file.save(Buffer.from(mediaBuffer), {
       contentType: mimeType,
       metadata: {
         cacheControl: 'public, max-age=3600',
+      }
+    }).catch(async (uploadError) => {
+      // Якщо bucket не існує (404), створюємо його
+      if (uploadError.code === 404) {
+        console.log(`Bucket not found, creating: ${bucketName}`);
+        await storage.createBucket(bucketName, {
+          location: location.toUpperCase(),
+          storageClass: 'STANDARD'
+        });
+        // Повторюємо завантаження
+        await file.save(Buffer.from(mediaBuffer), {
+          contentType: mimeType,
+          metadata: {
+            cacheControl: 'public, max-age=3600',
+          }
+        });
+      } else {
+        throw uploadError;
       }
     });
     
