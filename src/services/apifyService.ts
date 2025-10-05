@@ -15,6 +15,23 @@ export interface FacebookAdData {
   pageId: string;
 }
 
+export interface ApifyScrapedResult {
+  success: boolean;
+  ads: FacebookAdData[];
+  requestId?: string;
+  savedCount?: number;
+  duplicatesCount?: number;
+  totalScraped?: number;
+  newAdsForAnalysis?: Array<{
+    id: string;
+    media_url: string;
+    media_type: string;
+    title: string;
+    caption: string | null;
+  }>;
+  source?: string;
+}
+
 // Всі Apify виклики тепер йдуть через Railway backend
 
 // Функція для скрапінгу Facebook Ads через Railway backend
@@ -22,7 +39,7 @@ export const scrapeFacebookAds = async (
   pageId: string,
   country: string = 'US',
   count: number = 10
-): Promise<FacebookAdData[]> => {
+): Promise<ApifyScrapedResult> => {
   try {
     console.log(`Scraping Facebook Ads for page ${pageId} in ${country}, count: ${count}`);
 
@@ -45,11 +62,11 @@ export const scrapeFacebookAds = async (
 
     const data = await response.json();
     
-    if (!data.success || !data.ads) {
+    if (!data.success) {
       throw new Error('No ads found or invalid response');
     }
 
-    return data.ads;
+    return data;
 
   } catch (error: any) {
     console.error('Facebook Ads Scraping Error:', error);

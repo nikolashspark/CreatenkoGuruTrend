@@ -94,20 +94,58 @@ const CompetitorAnalysis: React.FC = () => {
     try {
       // Скрапимо Facebook Ads через Apify
       console.log(`Scraping Facebook Ads for page ${pageId} in ${country}, count: ${count}`);
-      const scrapedAds = await scrapeFacebookAds(pageId, country, count);
+      const scrapeResult = await scrapeFacebookAds(pageId, country, count);
+      
+      // Якщо Apify повернув newAdsForAnalysis - використаємо їх, інакше всі ads
+      const scrapedAds = scrapeResult.ads || scrapeResult;
+      const newAdsForAnalysis = scrapeResult.newAdsForAnalysis || [];
+      
       setAds(scrapedAds);
 
       console.log('📊 Scraped ads:', scrapedAds.length);
+      console.log('📊 New ads for analysis:', newAdsForAnalysis.length);
+      console.log('📊 Duplicates skipped:', scrapeResult.duplicatesCount || 0);
       console.log('📊 Ads with video:', scrapedAds.filter(ad => ad.videoUrl).length);
       console.log('📊 Sample ad:', scrapedAds[0]);
 
-      // Якщо увімкнено Gemini - спочатку аналізуємо відео
+      // Якщо увімкнено Gemini - автоматично аналізуємо НОВІ креативи через Vertex AI
       let geminiVideoInsights: Record<string, string> = {};
       
       console.log('🔍 Checking useGemini state:', useGemini);
       
-      if (useGemini) {
-        console.log('✅ Vertex AI video analysis is ENABLED');
+      if (useGemini && newAdsForAnalysis.length > 0) {
+        console.log(`✅ Vertex AI auto-analysis is ENABLED - analyzing ${newAdsForAnalysis.length} new ads`);
+        
+        for (let i = 0; i < newAdsForAnalysis.length; i++) {
+          const ad = newAdsForAnalysis[i];
+          try {
+            console.log(`🔄 [${i+1}/${newAdsForAnalysis.length}] Analyzing ad ${ad.id} with Vertex AI...`);
+            
+            const result = await analyzeAdWithAI(ad.id, false);
+            
+            geminiVideoInsights[ad.id] = result.analysis;
+            setVideoAnalysis(prev => ({
+              ...prev,
+              [ad.id]: result.analysis
+            }));
+            
+            console.log(`✅ [${i+1}/${newAdsForAnalysis.length}] Ad ${ad.id} analyzed`);
+          } catch (analysisErr: any) {
+            console.error(`❌ Failed to analyze ad ${ad.id}:`, analysisErr);
+            // Продовжуємо аналізувати інші
+          }
+        }
+        
+        console.log('🎉 Auto-analysis completed for all new ads');
+      } else if (useGemini) {
+        console.log('⚠️ Vertex AI is enabled but no new ads to analyze (all were duplicates or no media)');
+      } else {
+        console.log('⚠️ Vertex AI auto-analysis is disabled');
+      }
+      
+      // Старий код для відео аналізу (залишаємо для сумісності)
+      if (useGemini && newAdsForAnalysis.length === 0) {
+        console.log('✅ Vertex AI video analysis is ENABLED (old flow)');
         const videoAds = scrapedAds.filter(ad => ad.videoUrl);
         console.log(`📹 Found ${videoAds.length} video ads to analyze`);
         
@@ -293,8 +331,11 @@ const CompetitorAnalysis: React.FC = () => {
               className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
             />
             <label htmlFor="useGemini" className="ml-2 text-sm text-gray-700">
-              🎥 <strong>Глибокий аналіз відео</strong> через Vertex AI Gemini (детальний аналіз кадрів, динаміки, емоцій) - використовує ваші $300 кредитів
+              🤖 <strong>Автоматичний аналіз через Vertex AI Gemini</strong> (детальний аналіз відео та картинок, динаміка, емоції, візуальні ефекти) - автоматично аналізує всі НОВІ креативи після пошуку
             </label>
+          </div>
+          <div className="mt-2 ml-6 text-xs text-gray-500">
+            💡 Якщо вимкнено - аналіз тільки через кнопку "🤖 Аналізувати" на кожному креативі окремо
           </div>
         </div>
         )}
@@ -307,7 +348,13 @@ const CompetitorAnalysis: React.FC = () => {
             disabled={isLoading}
             className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-bold py-3 px-8 rounded-lg transition duration-200"
           >
-            {isLoading ? '🔄 Аналізуємо...' : '🚀 Почати аналіз'}
+            {isLoading ? (
+              <span>
+                🔄 {useGemini ? 'Аналізуємо з Vertex AI...' : 'Скрапимо...'}
+              </span>
+            ) : (
+              '🚀 Почати аналіз'
+            )}
           </button>
         </div>
         )}

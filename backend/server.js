@@ -781,14 +781,38 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     const requestId = requestData.id;
     console.log('✅ Request saved with ID:', requestId);
 
-    // Крок 2: Трансформуємо та зберігаємо дані в Supabase
-    console.log('💾 Saving ads to Supabase...');
+    // Крок 2: Перевіряємо існуючі ad_archive_id в базі
+    console.log('🔍 Checking for existing ads...');
+    const archiveIds = items.map(item => item.ad_archive_id).filter(Boolean);
+    
+    let existingAds = [];
+    if (archiveIds.length > 0) {
+      const { data: existing } = await supabase
+        .from('facebook_ads')
+        .select('ad_archive_id')
+        .in('ad_archive_id', archiveIds);
+      
+      existingAds = existing || [];
+      console.log(`Found ${existingAds.length} existing ads in database`);
+    }
+    
+    const existingArchiveIds = new Set(existingAds.map(ad => ad.ad_archive_id));
+    
+    // Крок 3: Трансформуємо та зберігаємо ТІЛЬКИ НОВІ дані в Supabase
+    console.log('💾 Saving new ads to Supabase...');
     const transformedAds = [];
     const adsToSave = [];
+    const newAdsInfo = []; // Для автоматичного аналізу
 
     for (const item of items) {
       const snapshot = item.snapshot || {};
       const cards = snapshot.cards || [];
+      
+      // Пропускаємо якщо ad_archive_id вже існує
+      if (item.ad_archive_id && existingArchiveIds.has(item.ad_archive_id)) {
+        console.log(`⏭️ Skipping duplicate ad: ${item.ad_archive_id}`);
+        continue;
+      }
       
       // Якщо немає cards, створюємо один запис з основними даними
       if (cards.length === 0) {
@@ -859,9 +883,10 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
       }
     }
 
-    // Зберігаємо всі оголошення в Supabase
+    // Зберігаємо всі НОВІ оголошення в Supabase
+    let savedAds = [];
     if (adsToSave.length > 0) {
-      const { data: savedAds, error: adsError } = await supabase
+      const { data: saved, error: adsError } = await supabase
         .from('facebook_ads')
         .insert(adsToSave)
         .select();
@@ -871,14 +896,31 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
         throw new Error(`Failed to save ads: ${adsError.message}`);
       }
 
-      console.log(`✅ Saved ${savedAds.length} ads to Supabase`);
+      savedAds = saved || [];
+      console.log(`✅ Saved ${savedAds.length} new ads to Supabase (${existingAds.length} duplicates skipped)`);
+      
+      // Зберігаємо інфо для автоматичного аналізу
+      savedAds.forEach(ad => {
+        if (ad.media_url) {
+          newAdsInfo.push({
+            id: ad.id,
+            media_url: ad.media_url,
+            media_type: ad.media_type,
+            title: ad.title,
+            caption: ad.caption
+          });
+        }
+      });
     }
 
     res.json({
       success: true,
       ads: transformedAds,
       requestId: requestId,
-      savedCount: adsToSave.length,
+      savedCount: savedAds.length,
+      duplicatesCount: existingAds.length,
+      totalScraped: items.length,
+      newAdsForAnalysis: newAdsInfo, // Для frontend автоматичного аналізу
       source: 'apify-real'
     });
 
