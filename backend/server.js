@@ -808,6 +808,19 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
       const snapshot = item.snapshot || {};
       const cards = snapshot.cards || [];
       
+      console.log('\n📦 Processing ad:', item.ad_archive_id);
+      console.log('  Snapshot keys:', Object.keys(snapshot));
+      console.log('  Cards count:', cards.length);
+      if (cards.length > 0) {
+        console.log('  First card keys:', Object.keys(cards[0]));
+        console.log('  First card media:', {
+          video_hd_url: cards[0].video_hd_url,
+          video_sd_url: cards[0].video_sd_url,
+          resized_image_url: cards[0].resized_image_url,
+          original_image_url: cards[0].original_image_url
+        });
+      }
+      
       // Пропускаємо якщо ad_archive_id вже існує
       if (item.ad_archive_id && existingArchiveIds.has(item.ad_archive_id)) {
         console.log(`⏭️ Skipping duplicate ad: ${item.ad_archive_id}`);
