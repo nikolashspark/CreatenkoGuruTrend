@@ -1298,6 +1298,47 @@ app.post('/api/gemini/analyze-video', async (req, res) => {
   }
 });
 
+// GET endpoint для отримання унікальних Page ID з аналізами
+app.get('/api/analyzed-page-ids', async (req, res) => {
+  try {
+    const { data: ads, error } = await supabase
+      .from('facebook_ads')
+      .select('page_name')
+      .not('vertex_analysis', 'is', null);
+    
+    if (error) {
+      throw new Error(`Failed to fetch page IDs: ${error.message}`);
+    }
+    
+    // Підрахунок креативів для кожного page_id
+    const pageIdCounts = {};
+    ads?.forEach(ad => {
+      if (ad.page_name) {
+        pageIdCounts[ad.page_name] = (pageIdCounts[ad.page_name] || 0) + 1;
+      }
+    });
+    
+    // Форматуємо результат
+    const pageIds = Object.entries(pageIdCounts).map(([pageId, count]) => ({
+      page_id: pageId,
+      count: count
+    })).sort((a, b) => b.count - a.count); // Сортуємо за кількістю креативів
+    
+    res.json({
+      success: true,
+      pageIds: pageIds,
+      total: pageIds.length
+    });
+    
+  } catch (error) {
+    console.error('Fetch analyzed page IDs error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch analyzed page IDs',
+      details: error.message
+    });
+  }
+});
+
 // GET endpoint для отримання всіх системних промптів
 app.get('/api/system-prompts', async (req, res) => {
   try {

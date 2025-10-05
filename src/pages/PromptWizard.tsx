@@ -17,13 +17,51 @@ interface PromptResult {
 
 type ModeType = 'user_idea' | 'all_trends' | 'fixed_page';
 
+interface PageIdOption {
+  page_id: string;
+  count: number;
+}
+
 const PromptWizard: React.FC = () => {
   const [mode, setMode] = useState<ModeType>('all_trends');
   const [pageId, setPageId] = useState('');
+  const [availablePageIds, setAvailablePageIds] = useState<PageIdOption[]>([]);
+  const [loadingPageIds, setLoadingPageIds] = useState(false);
   const [userIdea, setUserIdea] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<PromptResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Завантаження списку Page ID при зміні режиму на fixed_page
+  React.useEffect(() => {
+    if (mode === 'fixed_page' && availablePageIds.length === 0 && !loadingPageIds) {
+      loadAvailablePageIds();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  const loadAvailablePageIds = async () => {
+    try {
+      setLoadingPageIds(true);
+      console.log('Loading available Page IDs...');
+
+      const response = await fetch(`${RAILWAY_API_URL}/api/analyzed-page-ids`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to load page IDs');
+      }
+
+      const data = await response.json();
+      setAvailablePageIds(data.pageIds || []);
+      console.log(`✅ Loaded ${data.pageIds?.length || 0} Page IDs`);
+      
+    } catch (err: any) {
+      console.error('Load Page IDs error:', err);
+      setError(`Не вдалося завантажити список Page ID: ${err.message}`);
+    } finally {
+      setLoadingPageIds(false);
+    }
+  };
 
   const generatePrompts = async () => {
     // Validation based on mode
@@ -175,22 +213,40 @@ const PromptWizard: React.FC = () => {
           <h2 className="text-xl font-semibold mb-4">📋 Параметри генерації</h2>
           
           <div className="space-y-4">
-            {/* Page ID input - only for fixed_page mode */}
+            {/* Page ID select - only for fixed_page mode */}
             {mode === 'fixed_page' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Page ID <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  value={pageId}
-                  onChange={(e) => setPageId(e.target.value)}
-                  placeholder="161970940341938"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Введіть Page ID сторінки для аналізу тільки її креативів
-                </p>
+                
+                {loadingPageIds ? (
+                  <div className="w-full px-4 py-3 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-center">
+                    ⏳ Завантаження списку...
+                  </div>
+                ) : availablePageIds.length === 0 ? (
+                  <div className="w-full px-4 py-3 border border-yellow-300 rounded-lg bg-yellow-50 text-yellow-800 text-sm">
+                    ⚠️ Немає проаналізованих Page ID. Спочатку проаналізуйте креативи в розділі "Аналіз Page ID"
+                  </div>
+                ) : (
+                  <>
+                    <select
+                      value={pageId}
+                      onChange={(e) => setPageId(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                    >
+                      <option value="">-- Оберіть Page ID --</option>
+                      {availablePageIds.map((item) => (
+                        <option key={item.page_id} value={item.page_id}>
+                          {item.page_id} ({item.count} креативів)
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      📊 Показано {availablePageIds.length} Page ID з аналізами • Відсортовано за кількістю креативів
+                    </p>
+                  </>
+                )}
               </div>
             )}
 
