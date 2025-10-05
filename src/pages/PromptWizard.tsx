@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-const RAILWAY_API_URL = import.meta.env.VITE_RAILWAY_API_URL || 'http://localhost:3000';
+const RAILWAY_API_URL = import.meta.env.VITE_RAILWAY_API_URL || 'https://createnkogurutrend-production.up.railway.app';
 
 interface PromptResult {
   trendAnalysis: string | null;
