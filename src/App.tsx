@@ -1,7 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Generation from './pages/Generation'
-import Inspiration from './pages/Inspiration'
+import PromptWizard from './pages/PromptWizard'
 import CompetitorAnalysis from './pages/CompetitorAnalysis'
 
 function App() {
@@ -11,7 +11,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Generation />} />
           <Route path="/generation" element={<Generation />} />
-          <Route path="/inspiration" element={<Inspiration />} />
+          <Route path="/inspiration" element={<PromptWizard />} />
           <Route path="/competitors" element={<CompetitorAnalysis />} />
         </Routes>
       </Layout>

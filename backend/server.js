@@ -3,6 +3,7 @@ const cors = require('cors');
 const { WebSocketServer } = require('ws');
 const http = require('http');
 const { createClient } = require('@supabase/supabase-js');
+const PROMPTS = require('./prompts.config');
 require('dotenv').config();
 
 const app = express();
@@ -1292,6 +1293,174 @@ app.post('/api/gemini/analyze-video', async (req, res) => {
     console.error('Server Error:', error);
     res.status(500).json({
       error: 'Failed to analyze video',
+      details: error.message
+    });
+  }
+});
+
+// POST endpoint для Prompt Wizard - аналіз трендів та генерація Kling промптів
+app.post('/api/prompt-wizard/generate', async (req, res) => {
+  try {
+    const { pageId, userIdea } = req.body;
+    
+    if (!pageId) {
+      return res.status(400).json({ error: 'Page ID is required' });
+    }
+    
+    console.log('=== PROMPT WIZARD: Generating Kling prompts ===');
+    console.log('Page ID:', pageId);
+    console.log('User idea:', userIdea);
+    
+    // Крок 1: Отримати всі аналізи з Vertex AI для цього page_id
+    const { data: ads, error: fetchError } = await supabase
+      .from('facebook_ads')
+      .select('id, title, vertex_analysis, media_type')
+      .eq('page_name', pageId)
+      .not('vertex_analysis', 'is', null);
+    
+    if (fetchError) {
+      throw new Error(`Failed to fetch ads: ${fetchError.message}`);
+    }
+    
+    console.log(`📊 Found ${ads?.length || 0} ads with Vertex AI analysis for page ${pageId}`);
+    
+    if (!ads || ads.length === 0) {
+      return res.status(404).json({
+        error: 'No analyzed ads found',
+        message: 'Спочатку проаналізуйте креативи через Vertex AI'
+      });
+    }
+    
+    // Крок 2: Зібрати всі аналізи в один текст
+    const allAnalyses = ads.map((ad, index) => `
+=== КРЕАТИВ #${index + 1} ===
+Тип: ${ad.media_type}
+Заголовок: ${ad.title}
+
+Аналіз:
+${ad.vertex_analysis}
+`).join('\n\n---\n\n');
+    
+    console.log('📝 Collected analyses, total length:', allAnalyses.length);
+    
+    // Крок 3: Відправити до Claude для аналізу трендів
+    console.log('🔄 Sending to Claude for trend analysis...');
+    
+    const trendAnalysisPrompt = `${PROMPTS.TREND_ANALYSIS_PROMPT}
+
+===== АНАЛІЗИ КРЕАТИВІВ КОНКУРЕНТІВ =====
+
+${allAnalyses}
+
+===== КІНЕЦЬ АНАЛІЗІВ =====
+
+Надай детальний аналіз трендів згідно з інструкціями вище.`;
+
+    const trendResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        messages: [{
+          role: 'user',
+          content: trendAnalysisPrompt
+        }]
+      })
+    });
+    
+    if (!trendResponse.ok) {
+      const errorText = await trendResponse.text();
+      throw new Error(`Claude trend analysis failed: ${errorText}`);
+    }
+    
+    const trendData = await trendResponse.json();
+    const trendAnalysis = trendData.content[0].text;
+    
+    console.log('✅ Trend analysis completed');
+    
+    // Крок 4: Згенерувати Kling промпти на основі трендів та ідеї користувача
+    console.log('🔄 Generating Kling prompts...');
+    
+    const klingPrompt = `${PROMPTS.KLING_OPTIMIZER_PROMPT}
+
+===== АНАЛІЗ ТРЕНДІВ =====
+
+${trendAnalysis}
+
+===== ІДЕЯ КОРИСТУВАЧА =====
+
+${userIdea || 'Створи промпти для фото енхансер додатку, що демонструє трансформацію старих блідих фото в яскраві HD версії'}
+
+===== ЗАВДАННЯ =====
+
+На основі трендів конкурентів та ідеї користувача, створи оптимізовані промпти для Kling AI.
+Надай відповідь в JSON форматі:
+
+{
+  "startingFrame": "...",
+  "finalFrame": "...",
+  "klingPrompt": "...",
+  "explanation": "Короткий опис чому ці промпти ефективні на основі трендів"
+}`;
+
+    const klingResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.CLAUDE_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{
+          role: 'user',
+          content: klingPrompt
+        }]
+      })
+    });
+    
+    if (!klingResponse.ok) {
+      const errorText = await klingResponse.text();
+      throw new Error(`Claude Kling generation failed: ${errorText}`);
+    }
+    
+    const klingData = await klingResponse.json();
+    const klingResult = klingData.content[0].text;
+    
+    console.log('✅ Kling prompts generated');
+    
+    // Спробуємо розпарсити JSON
+    let parsedPrompts;
+    try {
+      // Видаляємо markdown код блоки якщо є
+      const jsonMatch = klingResult.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedPrompts = JSON.parse(jsonMatch[0]);
+      } else {
+        parsedPrompts = JSON.parse(klingResult);
+      }
+    } catch (parseError) {
+      console.warn('Failed to parse JSON, returning raw text');
+      parsedPrompts = { raw: klingResult };
+    }
+    
+    res.json({
+      success: true,
+      trendAnalysis: trendAnalysis,
+      prompts: parsedPrompts,
+      adsAnalyzed: ads.length
+    });
+    
+  } catch (error) {
+    console.error('Prompt Wizard error:', error);
+    res.status(500).json({
+      error: 'Failed to generate prompts',
       details: error.message
     });
   }

@@ -11,7 +11,7 @@ const Sidebar = () => {
       icon: Sparkles,
     },
     {
-      name: 'Inspiration',
+      name: 'Prompt Wizard',
       path: '/inspiration',
       icon: Lightbulb,
     },
