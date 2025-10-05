@@ -799,32 +799,29 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
     const existingArchiveIds = new Set(existingAds.map(ad => ad.ad_archive_id));
     
     // Крок 3: Трансформуємо та зберігаємо ТІЛЬКИ НОВІ дані в Supabase
-    console.log('💾 Saving new ads to Supabase...');
+    console.log('💾 Processing ads from Apify...');
     const transformedAds = [];
     const adsToSave = [];
     const newAdsInfo = []; // Для автоматичного аналізу
+    let duplicatesCount = 0;
+    let processedUniqueAds = 0;
 
     for (const item of items) {
+      // Перевіряємо чи це дублікат ПЕРЕД обробкою cards
+      if (item.ad_archive_id && existingArchiveIds.has(item.ad_archive_id)) {
+        duplicatesCount++;
+        console.log(`⏭️ Skipping duplicate ad: ${item.ad_archive_id} (all cards ignored)`);
+        continue; // Пропускаємо ВСЕ оголошення з усіма cards
+      }
+      
+      processedUniqueAds++;
       const snapshot = item.snapshot || {};
       const cards = snapshot.cards || [];
       
-      console.log('\n📦 Processing ad:', item.ad_archive_id);
-      console.log('  Snapshot keys:', Object.keys(snapshot));
-      console.log('  Cards count:', cards.length);
-      if (cards.length > 0) {
-        console.log('  First card keys:', Object.keys(cards[0]));
-        console.log('  First card media:', {
-          video_hd_url: cards[0].video_hd_url,
-          video_sd_url: cards[0].video_sd_url,
-          resized_image_url: cards[0].resized_image_url,
-          original_image_url: cards[0].original_image_url
-        });
-      }
-      
-      // Пропускаємо якщо ad_archive_id вже існує
-      if (item.ad_archive_id && existingArchiveIds.has(item.ad_archive_id)) {
-        console.log(`⏭️ Skipping duplicate ad: ${item.ad_archive_id}`);
-        continue;
+      console.log(`\n✅ Processing NEW ad #${processedUniqueAds}: ${item.ad_archive_id}`);
+      console.log(`   Cards count: ${cards.length}`);
+      if (cards.length > 0 && cards[0].original_image_url) {
+        console.log(`   Media example: ${cards[0].original_image_url.substring(0, 80)}...`);
       }
       
       // Якщо немає cards, створюємо один запис з основними даними
@@ -898,42 +895,65 @@ app.post('/api/apify/facebook-ads', async (req, res) => {
 
     // Зберігаємо всі НОВІ оголошення в Supabase
     let savedAds = [];
-    if (adsToSave.length > 0) {
-      const { data: saved, error: adsError } = await supabase
-        .from('facebook_ads')
-        .insert(adsToSave)
-        .select();
-
-      if (adsError) {
-        console.error('❌ Supabase ads error:', adsError);
-        throw new Error(`Failed to save ads: ${adsError.message}`);
-      }
-
-      savedAds = saved || [];
-      console.log(`✅ Saved ${savedAds.length} new ads to Supabase (${existingAds.length} duplicates skipped)`);
+    
+    if (adsToSave.length === 0) {
+      console.log(`\n⚠️ Всі оголошення виявилися дублікатами!`);
+      console.log(`   Отримано з Apify: ${items.length} ads`);
+      console.log(`   Дублікати: ${duplicatesCount} ads`);
+      console.log(`   Нові креативи: 0`);
       
-      // Зберігаємо інфо для автоматичного аналізу
-      savedAds.forEach(ad => {
-        if (ad.media_url) {
-          newAdsInfo.push({
-            id: ad.id,
-            media_url: ad.media_url,
-            media_type: ad.media_type,
-            title: ad.title,
-            caption: ad.caption
-          });
-        }
+      return res.json({
+        success: true,
+        ads: [],
+        requestId: requestId,
+        savedCount: 0,
+        duplicatesCount: duplicatesCount,
+        totalScraped: items.length,
+        newAdsForAnalysis: [],
+        message: `Знайдено 0 унікальних креативів. Всі ${duplicatesCount} оголошень вже є в базі.`,
+        source: 'apify-real'
       });
     }
+    
+    const { data: saved, error: adsError } = await supabase
+      .from('facebook_ads')
+      .insert(adsToSave)
+      .select();
+
+    if (adsError) {
+      console.error('❌ Supabase ads error:', adsError);
+      throw new Error(`Failed to save ads: ${adsError.message}`);
+    }
+
+    savedAds = saved || [];
+    console.log(`\n✅ ПІДСУМОК:`);
+    console.log(`   Отримано з Apify: ${items.length} ads`);
+    console.log(`   Дублікати (пропущено): ${duplicatesCount} ads`);
+    console.log(`   Нові креативи (збережено): ${savedAds.length} cards`);
+    
+    // Зберігаємо інфо для автоматичного аналізу
+    savedAds.forEach(ad => {
+      if (ad.media_url) {
+        newAdsInfo.push({
+          id: ad.id,
+          media_url: ad.media_url,
+          media_type: ad.media_type,
+          title: ad.title,
+          caption: ad.caption
+        });
+      }
+    });
 
     res.json({
       success: true,
       ads: transformedAds,
       requestId: requestId,
       savedCount: savedAds.length,
-      duplicatesCount: existingAds.length,
+      duplicatesCount: duplicatesCount,
       totalScraped: items.length,
-      newAdsForAnalysis: newAdsInfo, // Для frontend автоматичного аналізу
+      uniqueAdsCount: processedUniqueAds,
+      newAdsForAnalysis: newAdsInfo,
+      message: `Збережено ${savedAds.length} нових креативів. Пропущено ${duplicatesCount} дублікатів.`,
       source: 'apify-real'
     });
 

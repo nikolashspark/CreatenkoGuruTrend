@@ -22,6 +22,7 @@ export interface ApifyScrapedResult {
   savedCount?: number;
   duplicatesCount?: number;
   totalScraped?: number;
+  uniqueAdsCount?: number;
   newAdsForAnalysis?: Array<{
     id: string;
     media_url: string;
@@ -29,6 +30,7 @@ export interface ApifyScrapedResult {
     title: string;
     caption: string | null;
   }>;
+  message?: string;
   source?: string;
 }
 

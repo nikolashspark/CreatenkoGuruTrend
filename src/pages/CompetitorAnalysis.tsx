@@ -96,6 +96,13 @@ const CompetitorAnalysis: React.FC = () => {
       console.log(`Scraping Facebook Ads for page ${pageId} in ${country}, count: ${count}`);
       const scrapeResult = await scrapeFacebookAds(pageId, country, count);
       
+      // Перевіряємо чи є нові креативи
+      if (scrapeResult.savedCount === 0 && scrapeResult.duplicatesCount > 0) {
+        setError(`⚠️ ${scrapeResult.message || 'Всі знайдені креативи вже є в базі даних. Спробуйте іншу сторінку або збільште кількість.'}`);
+        setIsLoading(false);
+        return;
+      }
+      
       // Якщо Apify повернув newAdsForAnalysis - використаємо їх, інакше всі ads
       const scrapedAds = scrapeResult.ads || scrapeResult;
       const newAdsForAnalysis = scrapeResult.newAdsForAnalysis || [];
@@ -105,8 +112,17 @@ const CompetitorAnalysis: React.FC = () => {
       console.log('📊 Scraped ads:', scrapedAds.length);
       console.log('📊 New ads for analysis:', newAdsForAnalysis.length);
       console.log('📊 Duplicates skipped:', scrapeResult.duplicatesCount || 0);
+      console.log('📊 Total scraped from Apify:', scrapeResult.totalScraped || 0);
+      console.log('📊 Unique ads saved:', scrapeResult.savedCount || 0);
       console.log('📊 Ads with video:', scrapedAds.filter(ad => ad.videoUrl).length);
-      console.log('📊 Sample ad:', scrapedAds[0]);
+      if (scrapedAds.length > 0) {
+        console.log('📊 Sample ad:', scrapedAds[0]);
+      }
+      
+      // Показуємо статистику користувачу
+      if (scrapeResult.message) {
+        console.log(`ℹ️ ${scrapeResult.message}`);
+      }
 
       // Якщо увімкнено Gemini - автоматично аналізуємо НОВІ креативи через Vertex AI
       let geminiVideoInsights: Record<string, string> = {};
