@@ -402,7 +402,7 @@ const CompetitorAnalysis: React.FC = () => {
                   {aiAnalysis[ad.id] && (
                     <div className="mt-3 p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-300 rounded-lg">
                       <h4 className="text-xs font-bold text-purple-900 mb-2 flex items-center gap-1">
-                        🤖 AI Аналіз {ad.adType === 'VIDEO' ? '(Vertex AI)' : '(Claude Vision)'}
+                        🤖 AI Аналіз (Gemini 2.0 Flash)
                       </h4>
                       <div className="text-xs text-gray-800 whitespace-pre-wrap max-h-64 overflow-y-auto">
                         {aiAnalysis[ad.id]}
